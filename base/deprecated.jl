@@ -238,4 +238,7 @@ end
 @deprecate cat_shape(dims, shape::Tuple{}, shapes::Tuple...) cat_shape(dims, shapes)
 cat_shape(dims, shape::Tuple{}) = () # make sure `cat_shape(dims, ())` do not recursively calls itself
 
+@deprecate unsafe_indices(A) axes(A)
+@deprecate unsafe_length(r) length(r)
+
 # END 1.6 deprecations
