@@ -154,6 +154,9 @@ endif
 # disable automatic Makefile rules
 .SUFFIXES:
 
+# dash `echo` is not well-behaved, so force bash
+SHELL = /bin/bash --posix
+
 # find out if git repository is available
 ifeq ($(shell [ -e $(JULIAHOME)/.git ] && echo true || echo "Warning: git information unavailable; versioning information limited" >&2), true)
 NO_GIT := 0
@@ -586,6 +589,12 @@ LD := link
 endif #USEMSVC
 RANLIB := $(CROSS_COMPILE)ranlib
 OBJCOPY := $(CROSS_COMPILE)objcopy
+
+ifneq ($(USEMSVC), 1)
+CPP_STDOUT := $(CPP) -P
+else
+CPP_STDOUT := $(CPP) -E
+endif
 
 # file extensions
 ifeq ($(OS), WINNT)
@@ -1024,22 +1033,19 @@ JCPPFLAGS+=-DSYSTEM_LLVM
 endif # SYSTEM_LLVM
 
 # Windows builds need a little help finding the LLVM libraries for llvm-config
-LLVM_CONFIG_PATH_FIX :=
-ifeq ($(OS),WINNT)
-LLVM_CONFIG_PATH_FIX := PATH="$(build_bindir):$(PATH)"
+# use delayed expansion (= not :=) because spawn isn't defined until later
+LLVM_CONFIG_PATH_FIX =
+ifeq ($(BUILD_OS),WINNT)
+LLVM_CONFIG_PATH_FIX = PATH="$(build_bindir):$(PATH)"
+else ifeq ($(OS),WINNT)
+LLVM_CONFIG_PATH_FIX = WINEPATH="$(call cygpath_w,$(build_bindir));$(WINEPATH)"
 endif
 
 ifeq ($(BUILD_OS),$(OS))
 LLVM_CONFIG_HOST := $(LLVM_CONFIG)
 else
 LLVM_CONFIG_HOST := $(basename $(LLVM_CONFIG))-host$(BUILD_EXE)
-ifeq (exists, $(shell [ -f '$(LLVM_CONFIG_HOST)' ] && echo exists ))
-ifeq ($(shell $(LLVM_CONFIG_PATH_FIX) $(LLVM_CONFIG_HOST) --version),3.3)
-# llvm-config-host <= 3.3 is broken, use llvm-config instead (in an emulator)
-# use delayed expansion (= not :=) because spawn isn't defined until later
-LLVM_CONFIG_HOST = $(LLVM_CONFIG_PATH_FIX) $(call spawn,$(LLVM_CONFIG))
-endif
-else
+ifneq (exists, $(shell [ -f '$(LLVM_CONFIG_HOST)' ] && echo exists ))
 # llvm-config-host does not exist (cmake build)
 LLVM_CONFIG_HOST = $(LLVM_CONFIG_PATH_FIX) $(call spawn,$(LLVM_CONFIG))
 endif
@@ -1570,6 +1576,7 @@ PRINT_FLISP = echo '$(subst ','\'',$(1))'; $(1)
 PRINT_JULIA = echo '$(subst ','\'',$(1))'; $(1)
 
 endif
+
 # Makefile debugging trick:
 # call print-VARIABLE to see the runtime value of any variable
 # (hardened against any special characters appearing in the output)
