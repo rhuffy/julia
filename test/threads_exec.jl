@@ -265,7 +265,7 @@ end
 @test_throws TypeError Atomic{BigInt}
 @test_throws TypeError Atomic{ComplexF64}
 
-if Sys.ARCH == :i686 || startswith(string(Sys.ARCH), "arm") ||
+if Sys.ARCH === :i686 || startswith(string(Sys.ARCH), "arm") ||
    Sys.ARCH === :powerpc64le || Sys.ARCH === :ppc64le
 
     @test_throws TypeError Atomic{Int128}()
@@ -549,7 +549,9 @@ function test_load_and_lookup_18020(n)
             ccall(:jl_load_and_lookup,
                   Ptr{Cvoid}, (Cstring, Cstring, Ref{Ptr{Cvoid}}),
                   "$i", :f, C_NULL)
-        catch
+        catch ex
+            ex isa ErrorException || rethrow()
+            startswith(ex.msg, "could not load library") || rethrow()
         end
     end
 end
@@ -588,12 +590,12 @@ function test_thread_too_few_iters()
 end
 test_thread_too_few_iters()
 
-@testset "InvasiveLinkedList" begin
-    @test eltype(Base.InvasiveLinkedList{Integer}) == Integer
+@testset "IntrusiveLinkedList" begin
+    @test eltype(Base.IntrusiveLinkedList{Integer}) == Integer
     @test eltype(Base.LinkedList{Integer}) == Integer
-    @test eltype(Base.InvasiveLinkedList{<:Integer}) == Any
+    @test eltype(Base.IntrusiveLinkedList{<:Integer}) == Any
     @test eltype(Base.LinkedList{<:Integer}) == Any
-    @test eltype(Base.InvasiveLinkedList{<:Base.LinkedListItem{Integer}}) == Any
+    @test eltype(Base.IntrusiveLinkedList{<:Base.LinkedListItem{Integer}}) == Any
 
     t = Base.LinkedList{Integer}()
     @test eltype(t) == Integer
@@ -726,7 +728,7 @@ function _atthreads_with_error(a, err)
     end
     a
 end
-@test_throws TaskFailedException _atthreads_with_error(zeros(nthreads()), true)
+@test_throws CompositeException _atthreads_with_error(zeros(nthreads()), true)
 let a = zeros(nthreads())
     _atthreads_with_error(a, false)
     @test a == [1:nthreads();]

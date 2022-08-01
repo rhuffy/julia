@@ -667,7 +667,7 @@ const libstdcxx_version_mapping = Dict{String,String}(
 
 Parses a string platform triplet back into a `Platform` object.
 """
-function Base.parse(::Type{Platform}, triplet::AbstractString; validate_strict::Bool = false)
+function Base.parse(::Type{Platform}, triplet::String; validate_strict::Bool = false)
     # Helper function to collapse dictionary of mappings down into a regex of
     # named capture groups joined by "|" operators
     c(mapping) = string("(",join(["(?<$k>$v)" for (k, v) in mapping], "|"), ")")
@@ -751,6 +751,8 @@ function Base.parse(::Type{Platform}, triplet::AbstractString; validate_strict::
     end
     throw(ArgumentError("Platform `$(triplet)` is not an officially supported platform"))
 end
+Base.parse(::Type{Platform}, triplet::AbstractString; kwargs...) =
+    parse(Platform, convert(String, triplet)::String; kwargs...)
 
 function Base.tryparse(::Type{Platform}, triplet::AbstractString)
     try
@@ -901,7 +903,7 @@ function detect_cxxstring_abi()
     end
 
     function open_libllvm(f::Function)
-        for lib_name in ("libLLVM-13jl", "libLLVM", "LLVM", "libLLVMSupport")
+        for lib_name in ("libLLVM-14jl", "libLLVM", "LLVM", "libLLVMSupport")
             hdl = Libdl.dlopen_e(lib_name)
             if hdl != C_NULL
                 try

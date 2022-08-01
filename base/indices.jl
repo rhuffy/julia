@@ -23,11 +23,11 @@ A linear indexing style uses one integer index to describe the position in the a
 (even if it's a multidimensional array) and column-major
 ordering is used to efficiently access the elements. This means that
 requesting [`eachindex`](@ref) from an array that is `IndexLinear` will return
-a simple one-dimensional range, even if it is multidimensional.
+a simple one-dimensional range, even if it is multidimensional.
 
 A custom array that reports its `IndexStyle` as `IndexLinear` only needs
 to implement indexing (and indexed assignment) with a single `Int` index;
-all other indexing expressions — including multidimensional accesses — will
+all other indexing expressions — including multidimensional accesses — will
 be recomputed to the linear index.  For example, if `A` were a `2×3` custom
 matrix with linear indexing, and we referenced `A[1, 3]`, this would be
 recomputed to the equivalent linear index and call `A[5]` since `2*1 + 3 = 5`.
@@ -50,13 +50,13 @@ a range of [`CartesianIndices`](@ref).
 
 A `N`-dimensional custom array that reports its `IndexStyle` as `IndexCartesian` needs
 to implement indexing (and indexed assignment) with exactly `N` `Int` indices;
-all other indexing expressions — including linear indexing — will
+all other indexing expressions — including linear indexing — will
 be recomputed to the equivalent Cartesian location.  For example, if `A` were a `2×3` custom
 matrix with cartesian indexing, and we referenced `A[5]`, this would be
 recomputed to the equivalent Cartesian index and call `A[1, 3]` since `5 = 2*1 + 3`.
 
 It is significantly more expensive to compute Cartesian indices from a linear index than it is
-to go the other way.  The former operation requires division — a very costly operation — whereas
+to go the other way.  The former operation requires division — a very costly operation — whereas
 the latter only uses multiplication and addition and is essentially free. This asymmetry means it
 is far more costly to use linear indexing with an `IndexCartesian` array than it is to use
 Cartesian indexing with an `IndexLinear` array.
@@ -320,6 +320,26 @@ which they index. To support those cases, `to_indices(A, I)` calls
 `to_indices(A, axes(A), I)`, which then recursively walks through both the
 given tuple of indices and the dimensional indices of `A` in tandem. As such,
 not all index types are guaranteed to propagate to `Base.to_index`.
+
+# Examples
+```jldoctest
+julia> A = zeros(1,2,3,4);
+
+julia> to_indices(A, (1,1,2,2))
+(1, 1, 2, 2)
+
+julia> to_indices(A, (1,1,2,20)) # no bounds checking
+(1, 1, 2, 20)
+
+julia> to_indices(A, (CartesianIndex((1,)), 2, CartesianIndex((3,4)))) # exotic index
+(1, 2, 3, 4)
+
+julia> to_indices(A, ([1,1], 1:2, 3, 4))
+([1, 1], 1:2, 3, 4)
+
+julia> to_indices(A, (1,2)) # no shape checking
+(1, 2)
+```
 """
 to_indices(A, I::Tuple) = (@inline; to_indices(A, axes(A), I))
 to_indices(A, I::Tuple{Any}) = (@inline; to_indices(A, (eachindex(IndexLinear(), A),), I))
@@ -329,11 +349,15 @@ to_indices(A, I::Tuple{}) = ()
 to_indices(A, I::Tuple{Vararg{Int}}) = I
 to_indices(A, I::Tuple{Vararg{Integer}}) = (@inline; to_indices(A, (), I))
 to_indices(A, inds, ::Tuple{}) = ()
-to_indices(A, inds, I::Tuple{Any, Vararg{Any}}) =
-    (@inline; (to_index(A, I[1]), to_indices(A, _maybetail(inds), tail(I))...))
+function to_indices(A, inds, I::Tuple{Any, Vararg{Any}})
+    @inline
+    head = _to_indices1(A, inds, I[1])
+    rest = to_indices(A, _cutdim(inds, I[1]), tail(I))
+    (head..., rest...)
+end
 
-_maybetail(::Tuple{}) = ()
-_maybetail(t::Tuple) = tail(t)
+_to_indices1(A, inds, I1) = (to_index(A, I1),)
+_cutdim(inds, I1) = safe_tail(inds)
 
 """
     Slice(indices)

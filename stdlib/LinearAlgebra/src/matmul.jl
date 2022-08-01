@@ -11,8 +11,8 @@ matprod(x, y) = x*y + x*y
 
 # dot products
 
-dot(x::Union{DenseArray{T},StridedVector{T}}, y::Union{DenseArray{T},StridedVector{T}}) where {T<:BlasReal} = BLAS.dot(x, y)
-dot(x::Union{DenseArray{T},StridedVector{T}}, y::Union{DenseArray{T},StridedVector{T}}) where {T<:BlasComplex} = BLAS.dotc(x, y)
+dot(x::StridedVecLike{T}, y::StridedVecLike{T}) where {T<:BlasReal} = BLAS.dot(x, y)
+dot(x::StridedVecLike{T}, y::StridedVecLike{T}) where {T<:BlasComplex} = BLAS.dotc(x, y)
 
 function dot(x::Vector{T}, rx::AbstractRange{TI}, y::Vector{T}, ry::AbstractRange{TI}) where {T<:BlasReal,TI<:Integer}
     if length(rx) != length(ry)
@@ -171,7 +171,7 @@ end
 function (*)(A::AdjOrTransStridedMat{<:BlasComplex}, B::StridedMaybeAdjOrTransMat{<:BlasReal})
     TS = promote_type(eltype(A), eltype(B))
     mul!(similar(B, TS, (size(A, 1), size(B, 2))),
-         copy_oftype(A, TS), # remove AdjOrTrans to use reinterpret trick below
+         copymutable_oftype(A, TS), # remove AdjOrTrans to use reinterpret trick below
          wrapperop(B)(convert(AbstractArray{real(TS)}, _parent(B))))
 end
 # the following case doesn't seem to benefit from the translation A*B = (B' * A')'
@@ -315,9 +315,9 @@ see [`QR`](@ref).
 ```jldoctest
 julia> A = [0 1; 1 0];
 
-julia> B = LinearAlgebra.UpperTriangular([1 2; 0 3]);
+julia> B = UpperTriangular([1 2; 0 3]);
 
-julia> LinearAlgebra.rmul!(A, B);
+julia> rmul!(A, B);
 
 julia> A
 2×2 Matrix{Int64}:
@@ -348,9 +348,9 @@ see [`QR`](@ref).
 ```jldoctest
 julia> B = [0 1; 1 0];
 
-julia> A = LinearAlgebra.UpperTriangular([1 2; 0 3]);
+julia> A = UpperTriangular([1 2; 0 3]);
 
-julia> LinearAlgebra.lmul!(A, B);
+julia> lmul!(A, B);
 
 julia> B
 2×2 Matrix{Int64}:

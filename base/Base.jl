@@ -28,8 +28,7 @@ macro noinline() Expr(:meta, :noinline) end
 # Try to help prevent users from shooting them-selves in the foot
 # with ambiguities by defining a few common and critical operations
 # (and these don't need the extra convert code)
-getproperty(x::Module, f::Symbol) = (@inline; getfield(x, f))
-setproperty!(x::Module, f::Symbol, v) = setfield!(x, f, v) # to get a decent error
+getproperty(x::Module, f::Symbol) = (@inline; getglobal(x, f))
 getproperty(x::Type, f::Symbol) = (@inline; getfield(x, f))
 setproperty!(x::Type, f::Symbol, v) = error("setfield! fields of Types should not be changed")
 getproperty(x::Tuple, f::Int) = (@inline; getfield(x, f))
@@ -40,8 +39,12 @@ setproperty!(x, f::Symbol, v) = setfield!(x, f, convert(fieldtype(typeof(x), f),
 
 dotgetproperty(x, f) = getproperty(x, f)
 
-getproperty(x::Module, f::Symbol, order::Symbol) = (@inline; getfield(x, f, order))
-setproperty!(x::Module, f::Symbol, v, order::Symbol) = setfield!(x, f, v, order) # to get a decent error
+getproperty(x::Module, f::Symbol, order::Symbol) = (@inline; getglobal(x, f, order))
+function setproperty!(x::Module, f::Symbol, v, order::Symbol=:monotonic)
+    @inline
+    val::Core.get_binding_type(x, f) = v
+    return setglobal!(x, f, val, order)
+end
 getproperty(x::Type, f::Symbol, order::Symbol) = (@inline; getfield(x, f, order))
 setproperty!(x::Type, f::Symbol, v, order::Symbol) = error("setfield! fields of Types should not be changed")
 getproperty(x::Tuple, f::Int, order::Symbol) = (@inline; getfield(x, f, order))
@@ -121,8 +124,14 @@ include("operators.jl")
 include("pointer.jl")
 include("refvalue.jl")
 include("refpointer.jl")
+
+# The REPL stdlib hooks into Base using this Ref
+const REPL_MODULE_REF = Ref{Module}()
+
 include("checked.jl")
 using .Checked
+function cld end
+function fld end
 
 # Lazy strings
 include("strings/lazy.jl")
@@ -148,18 +157,8 @@ using .Iterators: Flatten, Filter, product  # for generators
 include("namedtuple.jl")
 
 # For OS specific stuff
-# We need to strcat things here, before strings are really defined
-function strcat(x::String, y::String)
-    out = ccall(:jl_alloc_string, Ref{String}, (Csize_t,), Core.sizeof(x) + Core.sizeof(y))
-    GC.@preserve x y out begin
-        out_ptr = unsafe_convert(Ptr{UInt8}, out)
-        unsafe_copyto!(out_ptr, unsafe_convert(Ptr{UInt8}, x), Core.sizeof(x))
-        unsafe_copyto!(out_ptr + Core.sizeof(x), unsafe_convert(Ptr{UInt8}, y), Core.sizeof(y))
-    end
-    return out
-end
-include(strcat((length(Core.ARGS)>=2 ? Core.ARGS[2] : ""), "build_h.jl"))     # include($BUILDROOT/base/build_h.jl)
-include(strcat((length(Core.ARGS)>=2 ? Core.ARGS[2] : ""), "version_git.jl")) # include($BUILDROOT/base/version_git.jl)
+include("../build_h.jl")
+include("../version_git.jl")
 
 # These used to be in build_h.jl and are retained for backwards compatibility
 const libblas_name = "libblastrampoline"
@@ -178,9 +177,10 @@ include("multinverses.jl")
 using .MultiplicativeInverses
 include("abstractarraymath.jl")
 include("arraymath.jl")
+include("slicearray.jl")
 
 # SIMD loops
-@pure sizeof(s::String) = Core.sizeof(s)  # needed by gensym as called from simdloop
+sizeof(s::String) = Core.sizeof(s)  # needed by gensym as called from simdloop
 include("simdloop.jl")
 using .SimdLoop
 
@@ -274,6 +274,7 @@ include("condition.jl")
 include("threads.jl")
 include("lock.jl")
 include("channels.jl")
+include("partr.jl")
 include("task.jl")
 include("threads_overloads.jl")
 include("weakkeydict.jl")
@@ -295,9 +296,6 @@ include("cmd.jl")
 include("process.jl")
 include("ttyhascolor.jl")
 include("secretbuffer.jl")
-
-# RandomDevice support
-include("randomdevice.jl")
 
 # core math functions
 include("floatfuncs.jl")
@@ -488,8 +486,6 @@ end
 
 if is_primary_base_module
 function __init__()
-    # for the few uses of Libc.rand in Base:
-    Libc.srand()
     # Base library init
     reinit_stdio()
     Multimedia.reinit_displays() # since Multimedia.displays uses stdout as fallback
@@ -504,6 +500,10 @@ function __init__()
     nothing
 end
 
+# enable threads support
+@eval PCRE PCRE_COMPILE_LOCK = Threads.SpinLock()
+
 end
+
 
 end # baremodule Base

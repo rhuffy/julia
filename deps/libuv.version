@@ -1,2 +1,7 @@
+## jll artifact
+LIBUV_JLL_NAME := LibUV
+
+## source build
+LIBUV_VER := 2
 LIBUV_BRANCH=julia/rh/emscripten
 LIBUV_SHA1=3d7abfa95a22129d92ce4f475765c11252a67ba9
