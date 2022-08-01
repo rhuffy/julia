@@ -198,7 +198,7 @@ __attribute__((constructor)) void jl_load_libjulia_internal(void) {
 
     // Unpack our special library names.  This is why ordering of library names matters.
     libjulia_internal = load_library(special_library_names[0], lib_dir, 1);
-    void *libjulia_codegen = load_library(special_library_names[1], lib_dir, 0);
+    void *libjulia_codegen = NULL; //load_library(special_library_names[1], lib_dir, 0);
     const char * const * codegen_func_names;
     const char *codegen_liberr;
     if (libjulia_codegen == NULL) {

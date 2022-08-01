@@ -30,10 +30,18 @@ endif
 SHIPFLAGS  += -DDEP_LIBS="\"$(LOADER_BUILD_DEP_LIBS)\""
 DEBUGFLAGS += -DDEP_LIBS="\"$(LOADER_DEBUG_BUILD_DEP_LIBS)\""
 
-EXE_OBJS := $(BUILDDIR)/loader_exe.o
-EXE_DOBJS := $(BUILDDIR)/loader_exe.dbg.obj
 LIB_OBJS := $(BUILDDIR)/loader_lib.o
 LIB_DOBJS := $(BUILDDIR)/loader_lib.dbg.obj
+ifeq ($(EMSCRIPTEN),)
+EXE_OBJS := $(BUILDDIR)/loader_exe.o
+EXE_DOBJS := $(BUILDDIR)/loader_exe.dbg.obj
+else
+WASM_SRCS := $(BUILDDIR)/wasm_module.o # $(BUILDDIR)/interpreter_foreigncall.o
+EMCC_SIDE_MODULE := -sSIDE_MODULE
+EMCC_LIBS += -luv -lpcre2-8 -lgmp -lmpfr -ldSFMT -lLLVMSupport 
+EMCC_FLAGS += --allow-undefined --no-entry -sERROR_ON_UNDEFINED_SYMBOLS=0 -sMAIN_MODULE -sALLOW_MEMORY_GROWTH=1 -sTOTAL_MEMORY=536870912 -sRESERVED_FUNCTION_POINTERS=20 -s "EXPORTED_RUNTIME_METHODS=['stringToUTF8']"
+EMCC_FLAGS += --no-heap-copy --pre-js $(SRCDIR)/jsvm-emscripten/boxed.js --js-library $(SRCDIR)/jsvm-emscripten/task.js --js-library $(SRCDIR)/jsvm-emscripten/jscall.js -fcolor-diagnostics 
+endif
 
 # If this is an architecture that supports dynamic linking, link in a trampoline definition
 ifneq (,$(wildcard $(SRCDIR)/trampolines/trampolines_$(ARCH).S))
@@ -46,15 +54,20 @@ all: release debug
 release debug :  % : julia-% libjulia-%
 
 $(BUILDDIR)/loader_lib.o : $(SRCDIR)/loader_lib.c $(HEADERS) $(JULIAHOME)/VERSION
-	@$(call PRINT_CC, $(CC) -DLIBRARY_EXPORTS $(SHIPFLAGS) $(LOADER_CFLAGS) -c $< -o $@)
+	@$(call PRINT_CC, $(CC) -DLIBRARY_EXPORTS $(SHIPFLAGS) $(LOADER_CFLAGS) $(EMCC_SIDE_MODULE) -c $< -o $@)
 $(BUILDDIR)/loader_lib.dbg.obj : $(SRCDIR)/loader_lib.c $(HEADERS) $(JULIAHOME)/VERSION
-	@$(call PRINT_CC, $(CC) -DLIBRARY_EXPORTS $(DEBUGFLAGS) $(LOADER_CFLAGS) -c $< -o $@)
+	@$(call PRINT_CC, $(CC) -DLIBRARY_EXPORTS $(DEBUGFLAGS) $(LOADER_CFLAGS) $(EMCC_SIDE_MODULE) -c $< -o $@)
 $(BUILDDIR)/loader_exe.o : $(SRCDIR)/loader_exe.c $(HEADERS) $(JULIAHOME)/VERSION
 	@$(call PRINT_CC, $(CC) $(SHIPFLAGS) $(LOADER_CFLAGS) -c $< -o $@)
 $(BUILDDIR)/loader_exe.dbg.obj : $(SRCDIR)/loader_exe.c $(HEADERS) $(JULIAHOME)/VERSION
 	@$(call PRINT_CC, $(CC) $(DEBUGFLAGS) $(LOADER_CFLAGS) -c $< -o $@)
 $(BUILDDIR)/loader_trampolines.o : $(SRCDIR)/trampolines/trampolines_$(ARCH).S $(HEADERS) $(SRCDIR)/trampolines/common.h
 	@$(call PRINT_CC, $(CC) $(SHIPFLAGS) $(LOADER_CFLAGS) $< -c -o $@)
+# $(BUILDDIR)/interpreter_foreigncall.o : $(SRCDIR)/interpreter_foreigncall.c $(HEADERS) $(JULIAHOME)/VERSION
+# 	@$(call PRINT_CC, $(CC) $(SHIPFLAGS) $(LOADER_CFLAGS) -c $< -o $@)
+$(BUILDDIR)/wasm_module.o : $(SRCDIR)/wasm_module.c $(HEADERS) $(JULIAHOME)/VERSION
+	@$(call PRINT_CC, $(CC) $(SHIPFLAGS) $(LOADER_CFLAGS) -c $< -o $@)
+
 
 # Debugging target to help us see what kind of code is being generated for our trampolines
 dump-trampolines: $(SRCDIR)/trampolines/trampolines_$(ARCH).S
@@ -95,6 +108,7 @@ julia-release: $(build_bindir)/julia$(EXE)
 julia-debug: $(build_bindir)/julia-debug$(EXE)
 libjulia-release: $(build_shlibdir)/libjulia.$(SHLIB_EXT)
 libjulia-debug: $(build_shlibdir)/libjulia-debug.$(SHLIB_EXT)
+julia-wasm: $(BUILDDIR)/wasm_module.o
 
 ifeq ($(OS),WINNT)
 # On Windows we need to strip out exported functions from the generated import library.
@@ -102,7 +116,7 @@ STRIP_EXPORTED_FUNCS := $(shell $(CPP_STDOUT) -I$(JULIAHOME)/src $(SRCDIR)/list_
 endif
 
 $(build_shlibdir)/libjulia.$(JL_MAJOR_MINOR_SHLIB_EXT): $(LIB_OBJS) $(SRCDIR)/list_strip_symbols.h | $(build_shlibdir) $(build_libdir)
-	@$(call PRINT_LINK, $(CC) $(call IMPLIB_FLAGS,$@.tmp) $(LOADER_CFLAGS) -DLIBRARY_EXPORTS -shared $(SHIPFLAGS) $(LIB_OBJS) -o $@ \
+	@$(call PRINT_LINK, $(CC) $(call IMPLIB_FLAGS,$@.tmp) $(LOADER_CFLAGS) -DLIBRARY_EXPORTS -shared $(SHIPFLAGS) $(LIB_OBJS) -sSIDE_MODULE -o $@ \
 		$(JLIBLDFLAGS) $(LOADER_LDFLAGS) $(RPATH_LIB) $(call SONAME_FLAGS,libjulia.$(JL_MAJOR_SHLIB_EXT)))
 	@$(INSTALL_NAME_CMD)libjulia.$(SHLIB_EXT) $@
 ifeq ($(OS), WINNT)
@@ -133,6 +147,9 @@ $(build_bindir)/julia$(EXE): $(EXE_OBJS) $(build_shlibdir)/libjulia.$(SHLIB_EXT)
 
 $(build_bindir)/julia-debug$(EXE): $(EXE_DOBJS) $(build_shlibdir)/libjulia-debug.$(SHLIB_EXT) | $(build_bindir)
 	@$(call PRINT_LINK, $(CC) $(LOADER_CFLAGS) $(DEBUGFLAGS) $(EXE_DOBJS) -o $@ $(LOADER_LDFLAGS) $(RPATH) -ljulia-debug)
+
+$(build_bindir)/julia.js: $(build_shlibdir)/libjulia.$(SHLIB_EXT) | $(build_bindir)
+	@$(call PRINT_LINK, $(CC) $(LOADER_CFLAGS) $(DEBUGFLAGS) $(EMCC_FLAGS) $(WASM_SRCS) -sMAIN_MODULE -o $@ $(LOADER_LDFLAGS) $(EMCC_LIBS) -ljulia)
 
 clean: | $(CLEAN_TARGETS)
 	rm -f $(BUILDDIR)/*.o $(BUILDDIR)/*.dbg.obj

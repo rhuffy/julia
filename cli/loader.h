@@ -58,10 +58,11 @@
 # endif
 #define JL_HIDDEN
 #else
+#include <emscripten/emscripten.h>
 # if defined(LIBRARY_EXPORTS) && defined(_OS_LINUX_)
-#  define JL_DLLEXPORT __attribute__ ((visibility("protected")))
+#  define JL_DLLEXPORT EMSCRIPTEN_KEEPALIVE __attribute__ ((visibility("protected")))
 # else
-#  define JL_DLLEXPORT __attribute__ ((visibility("default")))
+#  define JL_DLLEXPORT EMSCRIPTEN_KEEPALIVE __attribute__ ((visibility("default")))
 # endif
 #define JL_HIDDEN    __attribute__ ((visibility("hidden")))
 #endif
