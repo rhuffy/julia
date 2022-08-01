@@ -5,6 +5,13 @@ ifneq ($(USE_BINARYBUILDER_PCRE),1)
 PCRE_CFLAGS := -O3
 PCRE_LDFLAGS := $(RPATH_ESCAPED_ORIGIN)
 
+ifneq ($(EMSCRIPTEN),)
+PCRE_CFLAGS += -fPIC
+PCRE_JIT = --disable-jit
+else
+PCRE_JIT = --enable-jit
+endif
+
 $(SRCCACHE)/pcre2-$(PCRE_VER).tar.bz2: | $(SRCCACHE)
 	$(JLDOWNLOAD) $@ https://github.com/PhilipHazel/pcre2/releases/download/pcre2-$(PCRE_VER)/pcre2-$(PCRE_VER).tar.bz2
 
@@ -28,11 +35,11 @@ $(SRCCACHE)/pcre2-$(PCRE_VER)/pcre2-sljit-nomprotect.patch-applied: $(SRCCACHE)/
 $(BUILDDIR)/pcre2-$(PCRE_VER)/build-configured: $(SRCCACHE)/pcre2-$(PCRE_VER)/source-extracted $(SRCCACHE)/pcre2-$(PCRE_VER)/pcre2-sljit-apple-silicon-support.patch-applied $(SRCCACHE)/pcre2-$(PCRE_VER)/pcre2-sljit-nomprotect.patch-applied
 	mkdir -p $(dir $@)
 	cd $(dir $@) && \
-	$(dir $<)/configure $(CONFIGURE_COMMON) --enable-jit --includedir=$(build_includedir) CFLAGS="$(CFLAGS) $(PCRE_CFLAGS) -g -O0" LDFLAGS="$(LDFLAGS) $(PCRE_LDFLAGS)"
+	emconfigure $(dir $<)/configure $(CONFIGURE_COMMON) $(PCRE_JIT) --includedir=$(build_includedir) CFLAGS="$(CFLAGS) $(PCRE_CFLAGS) -g -O0" LDFLAGS="$(LDFLAGS) $(PCRE_LDFLAGS)"
 	echo 1 > $@
 
 $(BUILDDIR)/pcre2-$(PCRE_VER)/build-compiled: $(BUILDDIR)/pcre2-$(PCRE_VER)/build-configured
-	$(MAKE) -C $(dir $<) $(LIBTOOL_CCLD)
+	emmake $(MAKE) -C $(dir $<) $(LIBTOOL_CCLD)
 	echo 1 > $@
 
 $(BUILDDIR)/pcre2-$(PCRE_VER)/build-checked: $(BUILDDIR)/pcre2-$(PCRE_VER)/build-compiled

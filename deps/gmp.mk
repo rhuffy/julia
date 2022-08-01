@@ -8,6 +8,10 @@ ifeq ($(BUILD_OS),WINNT)
 GMP_CONFIGURE_OPTS += --srcdir="$(subst \,/,$(call mingw_to_dos,$(SRCCACHE)/gmp-$(GMP_VER)))"
 endif
 
+ifneq ($(EMSCRIPTEN),)
+GMP_CFLAGS += -fPIC
+endif
+
 ifneq ($(USE_BINARYBUILDER_GMP),1)
 
 $(SRCCACHE)/gmp-$(GMP_VER).tar.bz2: | $(SRCCACHE)
@@ -48,7 +52,7 @@ $(SRCCACHE)/gmp-$(GMP_VER)/source-patched: \
 $(BUILDDIR)/gmp-$(GMP_VER)/build-configured: $(SRCCACHE)/gmp-$(GMP_VER)/source-extracted $(SRCCACHE)/gmp-$(GMP_VER)/source-patched
 	mkdir -p $(dir $@)
 	cd $(dir $@) && \
-	$(dir $<)/configure $(CONFIGURE_COMMON) F77= --enable-cxx --enable-shared --disable-static $(GMP_CONFIGURE_OPTS)
+	$(dir $<)/configure $(CONFIGURE_COMMON) F77= --enable-cxx --enable-shared --disable-static CFLAGS="$(GMP_CFLAGS)" $(GMP_CONFIGURE_OPTS)
 	echo 1 > $@
 
 $(BUILDDIR)/gmp-$(GMP_VER)/build-compiled: $(BUILDDIR)/gmp-$(GMP_VER)/build-configured

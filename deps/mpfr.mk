@@ -12,10 +12,15 @@ MPFR_OPTS += --with-gmp-include=$(abspath $(build_includedir)) --with-gmp-lib=$(
 endif
 ifeq ($(BUILD_OS),WINNT)
 ifeq ($(OS),WINNT)
-MPFR_OPTS += CFLAGS="$(CFLAGS) -DNPRINTF_L -DNPRINTF_T -DNPRINTF_J"
+MPFR_CFLAGS := -DNPRINTF_L -DNPRINTF_T -DNPRINTF_J
 endif
 endif
 
+ifneq ($(EMSCRIPTEN),)
+MPFR_CFLAGS += -fPIC
+endif
+
+MPFR_OPTS += CFLAGS="$(CFLAGS) $(MPFR_CFLAGS)"
 
 ifeq ($(OS),Darwin)
 MPFR_CHECK_MFLAGS := LDFLAGS="$(LDFLAGS) -Wl,-rpath,'$(build_libdir)'"
