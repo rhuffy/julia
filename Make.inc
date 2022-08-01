@@ -1090,12 +1090,17 @@ LIBLAPACKNAME := liblapack
 endif
 endif
 
+ifneq ($(EMSCRIPTEN),)
+LIBM :=
+LIBMNAME :=
+else
 ifeq ($(USE_SYSTEM_LIBM), 1)
 LIBM := -lm
 LIBMNAME := libm
 else
 LIBM := -lopenlibm
 LIBMNAME := libopenlibm
+endif
 endif
 
 ifeq ($(USE_SYSTEM_LIBUV), 1)
@@ -1453,17 +1458,17 @@ define dep_lib_path
 $$($(PYTHON) $(call python_cygpath,$(JULIAHOME)/contrib/relative_path.py) $(1) $(2))
 endef
 
-LIBJULIAINTERNAL_BUILD_DEPLIB := $(call dep_lib_path,$(build_libdir),$(build_shlibdir)/libjulia-internal.$(JL_MAJOR_SHLIB_EXT))
-LIBJULIAINTERNAL_INSTALL_DEPLIB := $(call dep_lib_path,$(libdir),$(private_shlibdir)/libjulia-internal.$(JL_MAJOR_SHLIB_EXT))
+LIBJULIAINTERNAL_BUILD_DEPLIB := $(call dep_lib_path,$(build_libdir),$(build_shlibdir)/libjulia-internal.$(SHLIB_EXT))
+LIBJULIAINTERNAL_INSTALL_DEPLIB := $(call dep_lib_path,$(libdir),$(private_shlibdir)/libjulia-internal.$(SHLIB_EXT))
 
-LIBJULIAINTERNAL_DEBUG_BUILD_DEPLIB := $(call dep_lib_path,$(build_libdir),$(build_shlibdir)/libjulia-internal-debug.$(JL_MAJOR_SHLIB_EXT))
-LIBJULIAINTERNAL_DEBUG_INSTALL_DEPLIB := $(call dep_lib_path,$(libdir),$(private_shlibdir)/libjulia-internal-debug.$(JL_MAJOR_SHLIB_EXT))
+LIBJULIAINTERNAL_DEBUG_BUILD_DEPLIB := $(call dep_lib_path,$(build_libdir),$(build_shlibdir)/libjulia-internal-debug.$(SHLIB_EXT))
+LIBJULIAINTERNAL_DEBUG_INSTALL_DEPLIB := $(call dep_lib_path,$(libdir),$(private_shlibdir)/libjulia-internal-debug.$(SHLIB_EXT))
 
-LIBJULIACODEGEN_BUILD_DEPLIB := $(call dep_lib_path,$(build_libdir),$(build_shlibdir)/libjulia-codegen.$(JL_MAJOR_SHLIB_EXT))
-LIBJULIACODEGEN_INSTALL_DEPLIB := $(call dep_lib_path,$(libdir),$(private_shlibdir)/libjulia-codegen.$(JL_MAJOR_SHLIB_EXT))
+LIBJULIACODEGEN_BUILD_DEPLIB := $(call dep_lib_path,$(build_libdir),$(build_shlibdir)/libjulia-codegen.$(SHLIB_EXT))
+LIBJULIACODEGEN_INSTALL_DEPLIB := $(call dep_lib_path,$(libdir),$(private_shlibdir)/libjulia-codegen.$(SHLIB_EXT))
 
-LIBJULIACODEGEN_DEBUG_BUILD_DEPLIB := $(call dep_lib_path,$(build_libdir),$(build_shlibdir)/libjulia-codegen-debug.$(JL_MAJOR_SHLIB_EXT))
-LIBJULIACODEGEN_DEBUG_INSTALL_DEPLIB := $(call dep_lib_path,$(libdir),$(private_shlibdir)/libjulia-codegen-debug.$(JL_MAJOR_SHLIB_EXT))
+LIBJULIACODEGEN_DEBUG_BUILD_DEPLIB := $(call dep_lib_path,$(build_libdir),$(build_shlibdir)/libjulia-codegen-debug.$(SHLIB_EXT))
+LIBJULIACODEGEN_DEBUG_INSTALL_DEPLIB := $(call dep_lib_path,$(libdir),$(private_shlibdir)/libjulia-codegen-debug.$(SHLIB_EXT))
 
 ifeq ($(OS),WINNT)
 ifeq ($(BINARY),32)
@@ -1513,10 +1518,10 @@ LIBM_INSTALL_DEPLIB := $(call dep_lib_path,$(libdir),$(private_shlibdir)/$(LIBMN
 # That second point will no longer be true for most deps once they are placed within Artifacts directories.
 # Note that we prefix `libjulia-codegen` and `libjulia-internal` with `@` to signify to the loader that it
 # should not automatically dlopen() it in its loading loop.
-LOADER_BUILD_DEP_LIBS = $(LIBGCC_BUILD_DEPLIB):$(LIBM_BUILD_DEPLIB):@$(LIBJULIAINTERNAL_BUILD_DEPLIB):@$(LIBJULIACODEGEN_BUILD_DEPLIB):
-LOADER_DEBUG_BUILD_DEP_LIBS = $(LIBGCC_BUILD_DEPLIB):$(LIBM_BUILD_DEPLIB):@$(LIBJULIAINTERNAL_DEBUG_BUILD_DEPLIB):@$(LIBJULIACODEGEN_DEBUG_BUILD_DEPLIB):
-LOADER_INSTALL_DEP_LIBS = $(LIBGCC_INSTALL_DEPLIB):$(LIBM_INSTALL_DEPLIB):@$(LIBJULIAINTERNAL_INSTALL_DEPLIB):@$(LIBJULIACODEGEN_INSTALL_DEPLIB):
-LOADER_DEBUG_INSTALL_DEP_LIBS = $(LIBGCC_INSTALL_DEPLIB):$(LIBM_INSTALL_DEPLIB):@$(LIBJULIAINTERNAL_DEBUG_INSTALL_DEPLIB):@$(LIBJULIACODEGEN_DEBUG_INSTALL_DEPLIB):
+LOADER_BUILD_DEP_LIBS = @$(LIBJULIAINTERNAL_BUILD_DEPLIB):@$(LIBJULIACODEGEN_BUILD_DEPLIB):
+LOADER_DEBUG_BUILD_DEP_LIBS = @$(LIBJULIAINTERNAL_DEBUG_BUILD_DEPLIB):@$(LIBJULIACODEGEN_DEBUG_BUILD_DEPLIB):
+LOADER_INSTALL_DEP_LIBS = @$(LIBJULIAINTERNAL_INSTALL_DEPLIB):@$(LIBJULIACODEGEN_INSTALL_DEPLIB):
+LOADER_DEBUG_INSTALL_DEP_LIBS = @$(LIBJULIAINTERNAL_DEBUG_INSTALL_DEPLIB):@$(LIBJULIACODEGEN_DEBUG_INSTALL_DEPLIB):
 
 # Colors for make
 ifndef VERBOSE
