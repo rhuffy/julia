@@ -210,6 +210,8 @@ static void restore_stack2(jl_task_t *t, jl_ptls_t ptls, jl_task_t *lastt)
 #elif defined(JL_HAVE_ASM) || defined(JL_HAVE_SIGALTSTACK) || defined(_OS_WINDOWS_)
     if (jl_setjmp(lastt->ctx.copy_ctx.uc_mcontext, 0))
         return;
+#elif defined(_OS_EMSCRIPTEN_)
+    jl_swap_fiber(&lastt->ctx, &t->ctx);
 #else
 #error COPY_STACKS is incompatible with this platform
 #endif
@@ -1323,7 +1325,7 @@ jl_task_t *jl_init_root_task(jl_ptls_t ptls, void *stack_lo, void *stack_hi)
         jl_value_t *type;
         jl_task_t value;
     } bootstrap_task = {0};
-    jl_set_pgcstack(&bootstrap_task.value.gcstack);
+    // jl_set_pgcstack(&bootstrap_task.value.gcstack);
     bootstrap_task.value.ptls = ptls;
     if (jl_nothing == NULL) // make a placeholder
         jl_nothing = jl_gc_permobj(0, jl_nothing_type);
@@ -1367,7 +1369,7 @@ jl_task_t *jl_init_root_task(jl_ptls_t ptls, void *stack_lo, void *stack_hi)
     ptls->root_task = ct;
     jl_atomic_store_relaxed(&ptls->current_task, ct);
     JL_GC_PROMISE_ROOTED(ct);
-    jl_set_pgcstack(&ct->gcstack);
+    // jl_set_pgcstack(&ct->gcstack);
     assert(jl_current_task == ct);
 
 #ifdef _COMPILER_TSAN_ENABLED_

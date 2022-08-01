@@ -47,7 +47,7 @@ RUNTIME_SRCS := \
 	simplevector runtime_intrinsics precompile \
 	threading partr stackwalk gc gc-debug gc-pages gc-stacks gc-alloc-profiler method \
 	jlapi signal-handling safepoint timing subtype \
-	crc32c APInt-C processor ircode opaque_closure codegen-stubs coverage
+	crc32c APInt-C processor ircode opaque_closure codegen-stubs coverage anticodegen
 SRCS := jloptions runtime_ccall rtutils
 ifeq ($(OS),WINNT)
 SRCS += win32_ucontext
@@ -112,8 +112,8 @@ HEADERS := $(PUBLIC_HEADERS) $(addprefix $(SRCDIR)/,julia_internal.h options.h t
 PUBLIC_HEADERS += $(addprefix $(SRCDIR)/,julia_gcext.h)
 PUBLIC_HEADER_TARGETS := $(addprefix $(build_includedir)/julia/,$(notdir $(PUBLIC_HEADERS)) $(UV_HEADERS))
 
-LLVM_LDFLAGS := $(shell $(LLVM_CONFIG_HOST) --ldflags)
-LLVM_CXXFLAGS := $(shell $(LLVM_CONFIG_HOST) --cxxflags)
+# LLVM_LDFLAGS := $(shell $(LLVM_CONFIG_HOST) --ldflags)
+# LLVM_CXXFLAGS := $(shell $(LLVM_CONFIG_HOST) --cxxflags)
 
 ifeq ($(JULIACODEGEN),LLVM)
 ifneq ($(USE_SYSTEM_LLVM),0)
@@ -136,7 +136,8 @@ FLAGS += -DLLVM_SHLIB
 endif # USE_LLVM_SHLIB == 1
 endif
 
-RT_LLVM_LINK_ARGS := $(shell $(LLVM_CONFIG_HOST) --libs $(RT_LLVM_LIBS) --system-libs --link-static)
+# RT_LLVM_LINK_ARGS := $(shell $(LLVM_CONFIG_HOST) --libs $(RT_LLVM_LIBS) --system-libs --link-static)
+# RT_LLVM_LINK_ARGS := -lLLVM
 RT_LLVMLINK += $(LLVM_LDFLAGS) $(RT_LLVM_LINK_ARGS)
 ifeq ($(OS), WINNT)
 RT_LLVMLINK += -luuid -lole32
@@ -164,6 +165,8 @@ CODEGEN_DOBJS := $(CODEGEN_SRCS:%=$(BUILDDIR)/%.dbg.obj)
 
 DEBUGFLAGS += $(FLAGS) -DLIBRARY_EXPORTS
 SHIPFLAGS += $(FLAGS) -DLIBRARY_EXPORTS
+# DEBUGFLAGS += $(FLAGS)
+# SHIPFLAGS += $(FLAGS)
 
 # if not absolute, then relative to the directory of the julia executable
 SHIPFLAGS  += "-DJL_SYSTEM_IMAGE_PATH=\"$(build_private_libdir_rel)/sys.$(SHLIB_EXT)\""
@@ -268,6 +271,15 @@ $(build_shlibdir)/libllvmcalltest.$(SHLIB_EXT): $(SRCDIR)/llvmcalltest.cpp $(LLV
 
 julia_flisp.boot.inc.phony: $(BUILDDIR)/julia_flisp.boot.inc
 
+ifneq ($(EMSCRIPTEN),)
+$(BUILDDIR)/julia_flisp.boot.inc: $(BUILDDIR)/julia_flisp.boot
+	@$(call PRINT_FLISP, $(call spawn,$(FLISP_EXECUTABLE_release)) $(call cygpath_w,$(SRCDIR)/bin2hex.scm) < $< > $@)
+
+$(BUILDDIR)/julia_flisp.boot: $(addprefix $(SRCDIR)/,jlfrontend.scm flisp/aliases.scm flisp/profile.scm \
+		julia-parser.scm julia-syntax.scm match.scm utils.scm ast.scm macroexpand.scm mk_julia_flisp_boot.scm)
+	@$(call PRINT_FLISP, $(call spawn,$(FLISP_EXECUTABLE_release)) \
+		$(call cygpath_w,$(SRCDIR)/mk_julia_flisp_boot.scm) $(call cygpath_w,$(dir $<)) $(notdir $<) $(call cygpath_w,$@))
+else
 $(BUILDDIR)/julia_flisp.boot.inc: $(BUILDDIR)/julia_flisp.boot $(FLISP_EXECUTABLE_release)
 	@$(call PRINT_FLISP, $(call spawn,$(FLISP_EXECUTABLE_release)) $(call cygpath_w,$(SRCDIR)/bin2hex.scm) < $< > $@)
 
@@ -276,6 +288,7 @@ $(BUILDDIR)/julia_flisp.boot: $(addprefix $(SRCDIR)/,jlfrontend.scm flisp/aliase
 		$(FLISP_EXECUTABLE_release)
 	@$(call PRINT_FLISP, $(call spawn,$(FLISP_EXECUTABLE_release)) \
 		$(call cygpath_w,$(SRCDIR)/mk_julia_flisp_boot.scm) $(call cygpath_w,$(dir $<)) $(notdir $<) $(call cygpath_w,$@))
+endif
 
 # additional dependency links
 $(BUILDDIR)/codegen-stubs.o $(BUILDDIR)/codegen-stubs.dbg.obj: $(SRCDIR)/intrinsics.h
@@ -324,11 +337,13 @@ $(BUILDDIR)/support/libsupport.a: $(addprefix $(SRCDIR)/support/,*.h *.c *.S *.i
 $(BUILDDIR)/support/libsupport-debug.a: $(addprefix $(SRCDIR)/support/,*.h *.c *.S *.inc) $(SRCDIR)/support/*.c
 	$(MAKE) -C $(SRCDIR)/support debug BUILDDIR='$(abspath $(BUILDDIR)/support)'
 
+ifeq ($(EMSCRIPTEN),)
 $(FLISP_EXECUTABLE_release): $(BUILDDIR)/flisp/libflisp.a
 	$(MAKE) -C $(BUILDDIR)/flisp $(subst $(abspath $(BUILDDIR)/flisp)/,,$(abspath $(FLISP_EXECUTABLE_release)))
 
 $(FLISP_EXECUTABLE_debug): $(BUILDDIR)/flisp/libflisp-debug.a
 	$(MAKE) -C $(BUILDDIR)/flisp $(subst $(abspath $(BUILDDIR)/flisp)/,,$(abspath $(FLISP_EXECUTABLE_debug)))
+endif
 
 $(BUILDDIR)/flisp/libflisp.a: $(addprefix $(SRCDIR)/flisp/,*.h *.c) $(BUILDDIR)/support/libsupport.a
 	$(MAKE) -C $(SRCDIR)/flisp BUILDDIR='$(abspath $(BUILDDIR)/flisp)'
@@ -352,7 +367,7 @@ $(BUILDDIR)/julia_version.h: $(JULIAHOME)/VERSION
 CXXLD = $(CXX) -shared
 
 $(build_shlibdir)/libjulia-internal.$(JL_MAJOR_MINOR_SHLIB_EXT): $(SRCDIR)/julia.expmap $(OBJS) $(BUILDDIR)/flisp/libflisp.a $(BUILDDIR)/support/libsupport.a $(LIBUV)
-	@$(call PRINT_LINK, $(CXXLD) $(call IMPLIB_FLAGS,$@) $(JCXXFLAGS) $(CXXLDFLAGS) $(SHIPFLAGS) $(OBJS) $(RPATH_LIB) -o $@ \
+	@$(call PRINT_LINK, $(CXXLD) $(call IMPLIB_FLAGS,$@) -sSIDE_MODULE $(JCXXFLAGS) $(CXXLDFLAGS) $(SHIPFLAGS) $(OBJS) $(RPATH_LIB) -o $@ \
 		$(JLDFLAGS) $(JLIBLDFLAGS) $(RT_RELEASE_LIBS) $(call SONAME_FLAGS,libjulia-internal.$(JL_MAJOR_SHLIB_EXT)))
 	@$(INSTALL_NAME_CMD)libjulia-internal.$(SHLIB_EXT) $@
 	$(DSYMUTIL) $@

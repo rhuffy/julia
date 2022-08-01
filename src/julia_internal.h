@@ -97,6 +97,8 @@ void __tsan_switch_to_fiber(void *fiber, unsigned flags);
     asm volatile ("\t.cfi_undefined rip"); \
     asm volatile ("\t.cfi_undefined rbp"); \
     asm volatile ("\t.cfi_return_column rbp");
+#elif defined(_OS_EMSCRIPTEN_)
+#define CFI_NORETURN
 #else
     // per nongnu libunwind: "DWARF spec says undefined return address location means end of stack"
     // we use whatever happens to be register 1 on this platform for this
@@ -816,7 +818,7 @@ void jl_safepoint_defer_sigint(void);
 int jl_safepoint_consume_sigint(void);
 void jl_wake_libuv(void);
 
-void jl_set_pgcstack(jl_gcframe_t **) JL_NOTSAFEPOINT;
+JL_DLLEXPORT void jl_set_pgcstack(jl_gcframe_t **) JL_NOTSAFEPOINT;
 #if defined(_OS_DARWIN_)
 typedef pthread_key_t jl_pgcstack_key_t;
 #elif defined(_OS_WINDOWS_)

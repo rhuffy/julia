@@ -151,9 +151,11 @@ JL_DLLEXPORT void *jl_malloc_stack(size_t *bufsz, jl_task_t *owner) JL_NOTSAFEPO
         unsigned pool_id = select_pool(ssize);
         ssize = pool_sizes[pool_id];
         arraylist_t *pool = &ptls->heap.free_stacks[pool_id];
-        if (pool->len > 0) {
-            stk = arraylist_pop(pool);
-        }
+        // if (pool->len > 0) {
+        //     printf("len: %d\n", pool->len);
+        //     printf("%d", pool->_space[0]);
+        //     stk = arraylist_pop(pool);
+        // }
     }
     else {
         ssize = LLT_ALIGN(ssize, jl_page_size);

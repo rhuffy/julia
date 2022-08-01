@@ -25,6 +25,11 @@
 extern "C" {
 #endif
 
+JL_DLLEXPORT extern jl_module_t *jl_main_module JL_GLOBALLY_ROOTED;
+JL_DLLEXPORT extern jl_module_t *jl_core_module JL_GLOBALLY_ROOTED;
+JL_DLLEXPORT extern jl_module_t *jl_base_module JL_GLOBALLY_ROOTED;
+JL_DLLEXPORT extern jl_module_t *jl_top_module JL_GLOBALLY_ROOTED;
+
 // current line number in a file
 JL_DLLEXPORT int jl_lineno = 0; // need to update jl_critical_error if this is TLS
 // current file name

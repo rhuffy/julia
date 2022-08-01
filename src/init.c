@@ -537,6 +537,7 @@ static void jl_resolve_sysimg_location(JL_IMAGE_SEARCH rel)
     if (uv_exepath(free_path, &path_size)) {
         jl_error("fatal error: unexpected error while retrieving exepath");
     }
+    jl_error(free_path);
     if (path_size >= JL_PATH_MAX) {
         jl_error("fatal error: jl_options.julia_bin path too long");
     }
@@ -632,9 +633,9 @@ JL_DLLEXPORT void julia_init(JL_IMAGE_SEARCH rel)
     jl_io_loop = uv_default_loop(); // this loop will internal events (spawning process etc.),
                                     // best to call this first, since it also initializes libuv
     jl_init_uv();
-    init_stdio();
+    // init_stdio();
     restore_fp_env();
-    restore_signals();
+    // restore_signals();
     jl_init_intrinsic_properties();
 
     jl_page_size = jl_getpagesize();
