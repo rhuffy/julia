@@ -13,13 +13,12 @@ include("DSFMT.jl")
 using .DSFMT
 using Base.GMP.MPZ
 using Base.GMP: Limb
+import SHA
 
 using Base: BitInteger, BitInteger_types, BitUnsigned, require_one_based_indexing
 
-import Base: copymutable, copy, copy!, ==, hash, convert
-# using Serialization
-# import Serialization: serialize, deserialize
-import Base: rand, randn
+import Base: copymutable, copy, copy!, ==, hash, convert,
+             rand, randn, show
 
 export rand!, randn!,
        randexp, randexp!,
@@ -29,7 +28,7 @@ export rand!, randn!,
        shuffle, shuffle!,
        randperm, randperm!,
        randcycle, randcycle!,
-       AbstractRNG, MersenneTwister, RandomDevice
+       AbstractRNG, MersenneTwister, RandomDevice, TaskLocalRNG, Xoshiro
 
 ## general definitions
 
@@ -39,6 +38,8 @@ export rand!, randn!,
 Supertype for random number generators such as [`MersenneTwister`](@ref) and [`RandomDevice`](@ref).
 """
 abstract type AbstractRNG end
+
+Base.broadcastable(x::AbstractRNG) = Ref(x)
 
 gentype(::Type{X}) where {X} = eltype(X)
 gentype(x) = gentype(typeof(x))
@@ -108,7 +109,7 @@ abstract type Sampler{E} end
 gentype(::Type{<:Sampler{E}}) where {E} = E
 
 # temporarily for BaseBenchmarks
-RangeGenerator(x) = Sampler(GLOBAL_RNG, x)
+RangeGenerator(x) = Sampler(default_rng(), x)
 
 # In some cases, when only 1 random value is to be generated,
 # the optimal sampler can be different than if multiple values
@@ -136,11 +137,16 @@ the amount of precomputation, if applicable.
 *types* and *values*, respectively. [`Random.SamplerSimple`](@ref) can be used to store
 pre-computed values without defining extra types for only this purpose.
 """
-Sampler(rng::AbstractRNG, x, r::Repetition=Val(Inf)) = Sampler(typeof(rng), x, r)
-Sampler(rng::AbstractRNG, ::Type{X}, r::Repetition=Val(Inf)) where {X} = Sampler(typeof(rng), X, r)
+Sampler(rng::AbstractRNG, x, r::Repetition=Val(Inf)) = Sampler(typeof_rng(rng), x, r)
+Sampler(rng::AbstractRNG, ::Type{X}, r::Repetition=Val(Inf)) where {X} =
+    Sampler(typeof_rng(rng), X, r)
 
-Sampler(::Type{<:AbstractRNG}, sp::Sampler, ::Repetition) =
-    throw(ArgumentError("Sampler for this object is not defined"))
+typeof_rng(rng::AbstractRNG) = typeof(rng)
+
+# this method is necessary to prevent rand(rng::AbstractRNG, X) from
+# recursively constructing nested Sampler types.
+Sampler(T::Type{<:AbstractRNG}, sp::Sampler, r::Repetition) =
+    throw(MethodError(Sampler, (T, sp, r)))
 
 # default shortcut for the general case
 Sampler(::Type{RNG}, X) where {RNG<:AbstractRNG} = Sampler(RNG, X, Val(Inf))
@@ -247,18 +253,18 @@ rand(rng::AbstractRNG, ::UniformT{T}) where {T} = rand(rng, T)
 
 #### scalars
 
-rand(rng::AbstractRNG, X)                                      = rand(rng, Sampler(rng, X, Val(1)))
+rand(rng::AbstractRNG, X)                                           = rand(rng, Sampler(rng, X, Val(1)))
 # this is needed to disambiguate
-rand(rng::AbstractRNG, X::Dims)                                = rand(rng, Sampler(rng, X, Val(1)))
-rand(rng::AbstractRNG=GLOBAL_RNG, ::Type{X}=Float64) where {X} = rand(rng, Sampler(rng, X, Val(1)))
+rand(rng::AbstractRNG, X::Dims)                                     = rand(rng, Sampler(rng, X, Val(1)))
+rand(rng::AbstractRNG=default_rng(), ::Type{X}=Float64) where {X} = rand(rng, Sampler(rng, X, Val(1)))::X
 
-rand(X)                   = rand(GLOBAL_RNG, X)
-rand(::Type{X}) where {X} = rand(GLOBAL_RNG, X)
+rand(X)                   = rand(default_rng(), X)
+rand(::Type{X}) where {X} = rand(default_rng(), X)
 
 #### arrays
 
-rand!(A::AbstractArray{T}, X) where {T}             = rand!(GLOBAL_RNG, A, X)
-rand!(A::AbstractArray{T}, ::Type{X}=T) where {T,X} = rand!(GLOBAL_RNG, A, X)
+rand!(A::AbstractArray{T}, X) where {T}             = rand!(default_rng(), A, X)
+rand!(A::AbstractArray{T}, ::Type{X}=T) where {T,X} = rand!(default_rng(), A, X)
 
 rand!(rng::AbstractRNG, A::AbstractArray{T}, X) where {T}             = rand!(rng, A, Sampler(rng, X))
 rand!(rng::AbstractRNG, A::AbstractArray{T}, ::Type{X}=T) where {T,X} = rand!(rng, A, Sampler(rng, X))
@@ -274,7 +280,7 @@ rand(r::AbstractRNG, dims::Integer...) = rand(r, Float64, Dims(dims))
 rand(                dims::Integer...) = rand(Float64, Dims(dims))
 
 rand(r::AbstractRNG, X, dims::Dims)  = rand!(r, Array{gentype(X)}(undef, dims), X)
-rand(                X, dims::Dims)  = rand(GLOBAL_RNG, X, dims)
+rand(                X, dims::Dims)  = rand(default_rng(), X, dims)
 
 rand(r::AbstractRNG, X, d::Integer, dims::Integer...) = rand(r, X, Dims((d, dims...)))
 rand(                X, d::Integer, dims::Integer...) = rand(X, Dims((d, dims...)))
@@ -283,32 +289,27 @@ rand(                X, d::Integer, dims::Integer...) = rand(X, Dims((d, dims...
 # moreover, a call like rand(r, NotImplementedType()) would be an infinite loop
 
 rand(r::AbstractRNG, ::Type{X}, dims::Dims) where {X} = rand!(r, Array{X}(undef, dims), X)
-rand(                ::Type{X}, dims::Dims) where {X} = rand(GLOBAL_RNG, X, dims)
+rand(                ::Type{X}, dims::Dims) where {X} = rand(default_rng(), X, dims)
 
 rand(r::AbstractRNG, ::Type{X}, d::Integer, dims::Integer...) where {X} = rand(r, X, Dims((d, dims...)))
 rand(                ::Type{X}, d::Integer, dims::Integer...) where {X} = rand(X, Dims((d, dims...)))
 
+# SamplerUnion(X, Y, ...}) == Union{SamplerType{X}, SamplerType{Y}, ...}
+SamplerUnion(U...) = Union{Any[SamplerType{T} for T in U]...}
+const SamplerBoolBitInteger = SamplerUnion(Bool, BitInteger_types...)
 
-## __init__ & include
 
-function __init__()
-    try
-        seed!()
-    catch ex
-        Base.showerror_nostdio(ex,
-            "WARNING: Error during initialization of module Random")
-    end
-end
-
+include("Xoshiro.jl")
 include("RNGs.jl")
 include("generation.jl")
 include("normal.jl")
 include("misc.jl")
+include("XoshiroSimd.jl")
 
 ## rand & rand! & seed! docstrings
 
 """
-    rand([rng=GLOBAL_RNG], [S], [dims...])
+    rand([rng=default_rng()], [S], [dims...])
 
 Pick a random element or array of random elements from the set of values specified by `S`;
 `S` can be
@@ -317,10 +318,13 @@ Pick a random element or array of random elements from the set of values specifi
 * an `AbstractDict` or `AbstractSet` object,
 * a string (considered as a collection of characters), or
 * a type: the set of values to pick from is then equivalent to `typemin(S):typemax(S)` for
-  integers (this is not applicable to [`BigInt`](@ref)), and to ``[0, 1)`` for floating
-  point numbers;
+  integers (this is not applicable to [`BigInt`](@ref)), to ``[0, 1)`` for floating
+  point numbers and to ``[0, 1)+i[0, 1)`` for complex floating point numbers;
 
 `S` defaults to [`Float64`](@ref).
+When only one argument is passed besides the optional `rng` and is a `Tuple`, it is interpreted
+as a collection of values (`S`) and not as `dims`.
+
 
 !!! compat "Julia 1.1"
     Support for `S` as a tuple requires at least Julia 1.1.
@@ -336,20 +340,28 @@ julia> using Random
 
 julia> rand(MersenneTwister(0), Dict(1=>2, 3=>4))
 1=>2
+
+julia> rand((2, 3))
+3
+
+julia> rand(Float64, (2, 3))
+2×3 Array{Float64,2}:
+ 0.999717  0.0143835  0.540787
+ 0.696556  0.783855   0.938235
 ```
 
 !!! note
     The complexity of `rand(rng, s::Union{AbstractDict,AbstractSet})`
     is linear in the length of `s`, unless an optimized method with
     constant complexity is available, which is the case for `Dict`,
-    `Set` and `BitSet`. For more than a few calls, use `rand(rng,
+    `Set` and dense `BitSet`s. For more than a few calls, use `rand(rng,
     collect(s))` instead, or either `rand(rng, Dict(s))` or `rand(rng,
     Set(s))` as appropriate.
 """
 rand
 
 """
-    rand!([rng=GLOBAL_RNG], A, [S=eltype(A)])
+    rand!([rng=default_rng()], A, [S=eltype(A)])
 
 Populate the array `A` with random values. If `S` is specified
 (`S` can be a type or a collection, cf. [`rand`](@ref) for details),
@@ -362,7 +374,7 @@ but without allocating a new array.
 julia> rng = MersenneTwister(1234);
 
 julia> rand!(rng, zeros(5))
-5-element Array{Float64,1}:
+5-element Vector{Float64}:
  0.5908446386657102
  0.7667970365022592
  0.5662374165061859
@@ -373,8 +385,8 @@ julia> rand!(rng, zeros(5))
 rand!
 
 """
-    seed!([rng=GLOBAL_RNG], seed) -> rng
-    seed!([rng=GLOBAL_RNG]) -> rng
+    seed!([rng=default_rng()], seed) -> rng
+    seed!([rng=default_rng()]) -> rng
 
 Reseed the random number generator: `rng` will give a reproducible
 sequence of numbers if and only if a `seed` is provided. Some RNGs
@@ -382,38 +394,41 @@ don't accept a seed, like `RandomDevice`.
 After the call to `seed!`, `rng` is equivalent to a newly created
 object initialized with the same seed.
 
+If `rng` is not specified, it defaults to seeding the state of the
+shared task-local generator.
+
 # Examples
 ```julia-repl
 julia> Random.seed!(1234);
 
 julia> x1 = rand(2)
-2-element Array{Float64,1}:
- 0.590845
- 0.766797
+2-element Vector{Float64}:
+ 0.32597672886359486
+ 0.5490511363155669
 
 julia> Random.seed!(1234);
 
 julia> x2 = rand(2)
-2-element Array{Float64,1}:
- 0.590845
- 0.766797
+2-element Vector{Float64}:
+ 0.32597672886359486
+ 0.5490511363155669
 
 julia> x1 == x2
 true
 
-julia> rng = MersenneTwister(1234); rand(rng, 2) == x1
+julia> rng = Xoshiro(1234); rand(rng, 2) == x1
 true
 
-julia> MersenneTwister(1) == Random.seed!(rng, 1)
+julia> Xoshiro(1) == Random.seed!(rng, 1)
 true
 
 julia> rand(Random.seed!(rng), Bool) # not reproducible
 true
 
-julia> rand(Random.seed!(rng), Bool)
+julia> rand(Random.seed!(rng), Bool) # not reproducible either
 false
 
-julia> rand(MersenneTwister(), Bool) # not reproducible either
+julia> rand(Xoshiro(), Bool) # not reproducible either
 true
 ```
 """

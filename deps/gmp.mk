@@ -1,4 +1,15 @@
 ## GMP ##
+include $(SRCDIR)/gmp.version
+
+ifneq ($(USE_BINARYBUILDER_GMP),1)
+
+GMP_CONFIGURE_OPTS := $(CONFIGURE_COMMON)
+GMP_CONFIGURE_OPTS += --enable-cxx --enable-shared
+GMP_CONFIGURE_OPTS += CC_FOR_BUILD="$(HOSTCC)"
+
+ifeq ($(BUILD_ARCH),x86_64)
+GMP_CONFIGURE_OPTS += --enable-fat
+endif
 
 ifeq ($(SANITIZE),1)
 GMP_CONFIGURE_OPTS += --disable-assembly
@@ -14,8 +25,6 @@ else
 GMP_CONFIGURE_OPTS += --disable-static
 endif
 
-ifneq ($(USE_BINARYBUILDER_GMP),1)
-
 GMP_CONFIGURE_OPTS += CC_FOR_BUILD="$(HOSTCC)"
 
 $(SRCCACHE)/gmp-$(GMP_VER).tar.bz2: | $(SRCCACHE)
@@ -27,56 +36,62 @@ $(SRCCACHE)/gmp-$(GMP_VER)/source-extracted: $(SRCCACHE)/gmp-$(GMP_VER).tar.bz2
 	touch -c $(SRCCACHE)/gmp-$(GMP_VER)/configure # old target
 	echo 1 > $@
 
-$(SRCCACHE)/gmp-$(GMP_VER)/build-patched: $(SRCCACHE)/gmp-$(GMP_VER)/source-extracted
-	cp $(SRCDIR)/patches/config.sub $(SRCCACHE)/gmp-$(GMP_VER)/configfsf.sub
-	cd $(dir $@) && patch < $(SRCDIR)/patches/gmp-exception.patch
-	cd $(dir $@) && patch -p1 < $(SRCDIR)/patches/gmp_alloc_overflow_func.patch
+checksum-gmp: $(SRCCACHE)/gmp-$(GMP_VER).tar.bz2
+	$(JLCHECKSUM) $<
+
+# Apply fix to avoid using Apple ARM reserved register X18
+# Necessary for version 6.2.1, remove after next gmp release
+$(SRCCACHE)/gmp-$(GMP_VER)/gmp-HG-changeset.patch-applied: $(SRCCACHE)/gmp-$(GMP_VER)/source-extracted
+	cd $(dir $@) && \
+		patch -p1 < $(SRCDIR)/patches/gmp-HG-changeset.patch
 	echo 1 > $@
 
-$(SRCCACHE)/gmp-$(GMP_VER)/gmp-config-ldflags.patch-applied: | $(SRCCACHE)/gmp-$(GMP_VER)/build-patched
-	cd $(dir $@) && patch -p1 < $(SRCDIR)/patches/gmp-config-ldflags.patch
+$(SRCCACHE)/gmp-$(GMP_VER)/gmp-exception.patch-applied: $(SRCCACHE)/gmp-$(GMP_VER)/gmp-HG-changeset.patch-applied
+	cd $(dir $@) && \
+		patch -p1 < $(SRCDIR)/patches/gmp-exception.patch
 	echo 1 > $@
 
-$(BUILDDIR)/gmp-$(GMP_VER)/build-configured: $(SRCCACHE)/gmp-$(GMP_VER)/gmp-config-ldflags.patch-applied
+$(SRCCACHE)/gmp-$(GMP_VER)/gmp_alloc_overflow_func.patch-applied: $(SRCCACHE)/gmp-$(GMP_VER)/gmp-exception.patch-applied
+	cd $(dir $@) && \
+		patch -p1 < $(SRCDIR)/patches/gmp_alloc_overflow_func.patch
+	echo 1 > $@
 
-$(BUILDDIR)/gmp-$(GMP_VER)/build-configured: $(SRCCACHE)/gmp-$(GMP_VER)/source-extracted
+$(SRCCACHE)/gmp-$(GMP_VER)/gmp-CVE-2021-43618.patch-applied: $(SRCCACHE)/gmp-$(GMP_VER)/gmp_alloc_overflow_func.patch-applied
+	cd $(dir $@) && \
+		patch -p1 < $(SRCDIR)/patches/gmp-CVE-2021-43618.patch
+	echo 1 > $@
+
+$(SRCCACHE)/gmp-$(GMP_VER)/source-patched: $(SRCCACHE)/gmp-$(GMP_VER)/gmp-CVE-2021-43618.patch-applied
+	echo 1 > $@
+
+$(BUILDDIR)/gmp-$(GMP_VER)/build-configured: $(SRCCACHE)/gmp-$(GMP_VER)/source-patched
 	mkdir -p $(dir $@)
 	cd $(dir $@) && \
-	$(dir $<)/configure $(CONFIGURE_COMMON) F77= --enable-shared $(GMP_CONFIGURE_OPTS)
+	$(dir $<)/configure $(GMP_CONFIGURE_OPTS)
 	echo 1 > $@
 
 $(BUILDDIR)/gmp-$(GMP_VER)/build-compiled: $(BUILDDIR)/gmp-$(GMP_VER)/build-configured
-	$(MAKE) -C $(dir $<) $(LIBTOOL_CCLD)
+	$(MAKE) -C $(dir $<)
 	echo 1 > $@
 
 $(BUILDDIR)/gmp-$(GMP_VER)/build-checked: $(BUILDDIR)/gmp-$(GMP_VER)/build-compiled
 ifeq ($(OS),$(BUILD_OS))
-	$(MAKE) -C $(dir $@) $(LIBTOOL_CCLD) check
+	$(MAKE) -C $(dir $@) check
 endif
 	echo 1 > $@
 
-define GMP_INSTALL
-	mkdir -p $2/$(build_shlibdir) $2/$(build_includedir)
-ifeq ($(BUILD_OS),WINNT)
-	-mv $1/.libs/gmp.dll $1/.libs/libgmp.dll
-endif
-	$(INSTALL_M) $1/.libs/libgmp.*$(SHLIB_EXT)* $2/$(build_shlibdir)
-ifeq ($(OS),emscripten)
-	$(INSTALL_M) $1/.libs/libgmp.a $2/$(build_shlibdir)
-endif
-	$(INSTALL_F) $1/gmp.h $2/$(build_includedir)
-endef
 $(eval $(call staged-install, \
 	gmp,gmp-$(GMP_VER), \
-	GMP_INSTALL,,, \
-	$$(INSTALL_NAME_CMD)libgmp.$$(SHLIB_EXT) $$(build_shlibdir)/libgmp.$$(SHLIB_EXT)))
+	MAKE_INSTALL,,, \
+	$$(WIN_MAKE_HARD_LINK) $(build_bindir)/libgmp-*.dll $(build_bindir)/libgmp.dll && \
+		$$(INSTALL_NAME_CMD)libgmp.$$(SHLIB_EXT) $$(build_shlibdir)/libgmp.$$(SHLIB_EXT)))
 
 clean-gmp:
-	-rm $(BUILDDIR)/gmp-$(GMP_VER)/build-configured $(BUILDDIR)/gmp-$(GMP_VER)/build-compiled
+	-rm -f $(BUILDDIR)/gmp-$(GMP_VER)/build-configured $(BUILDDIR)/gmp-$(GMP_VER)/build-compiled
 	-$(MAKE) -C $(BUILDDIR)/gmp-$(GMP_VER) clean
 
 distclean-gmp:
-	-rm -rf $(SRCCACHE)/gmp-$(GMP_VER).tar.bz2 \
+	rm -rf $(SRCCACHE)/gmp-$(GMP_VER).tar.bz2 \
 		$(SRCCACHE)/gmp-$(GMP_VER) \
 		$(BUILDDIR)/gmp-$(GMP_VER)
 
@@ -89,8 +104,6 @@ check-gmp: $(BUILDDIR)/gmp-$(GMP_VER)/build-checked
 
 else # USE_BINARYBUILDER_GMP
 
-GMP_BB_URL_BASE := https://github.com/JuliaPackaging/Yggdrasil/releases/download/GMP-v$(GMP_VER)-$(GMP_BB_REL)
-GMP_BB_NAME := GMP.v$(GMP_VER)
+$(eval $(call bb-install,gmp,GMP,false,true))
 
-$(eval $(call bb-install,gmp,GMP,false))
 endif

@@ -1,8 +1,5 @@
-# Distributed Computing
-
-```@meta
-DocTestSetup = :(using Distributed)
-```
+# [Distributed Computing](@id man-distributed)
+Tools for distributed parallel processing.
 
 ```@docs
 Distributed.addprocs
@@ -16,6 +13,7 @@ Distributed.interrupt
 Distributed.myid
 Distributed.pmap
 Distributed.RemoteException
+Distributed.ProcessExitedException
 Distributed.Future
 Distributed.RemoteChannel
 Distributed.fetch(::Distributed.Future)
@@ -39,7 +37,6 @@ Distributed.remotecall(::Any, ::AbstractWorkerPool, ::Any...)
 Distributed.remotecall_wait(::Any, ::AbstractWorkerPool, ::Any...)
 Distributed.remotecall_fetch(::Any, ::AbstractWorkerPool, ::Any...)
 Distributed.remote_do(::Any, ::AbstractWorkerPool, ::Any...)
-Distributed.@spawn
 Distributed.@spawnat
 Distributed.@fetch
 Distributed.@fetchfrom
@@ -70,8 +67,5 @@ Distributed.connect(::ClusterManager, ::Int, ::WorkerConfig)
 Distributed.init_worker
 Distributed.start_worker
 Distributed.process_messages
-```
-
-```@meta
-DocTestSetup = nothing
+Distributed.default_addprocs_params
 ```

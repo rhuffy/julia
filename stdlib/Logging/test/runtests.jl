@@ -193,6 +193,9 @@ end
     └ SUFFIX
     """
 
+    # Execute backtrace once before checking formatting, see #3885
+    backtrace()
+
     # Attaching backtraces
     bt = func1()
     @test startswith(genmsg("msg", exception=(DivideError(),bt)),
@@ -201,7 +204,7 @@ end
     │   exception =
     │    DivideError: integer division error
     │    Stacktrace:
-    │     [1] func1() at""")
+    │      [1] func1()""")
 
 
     @testset "Limiting large data structures" begin
@@ -209,19 +212,19 @@ end
         replace("""
         ┌ PREFIX msg
         │   a =
-        │    100×100 Array{Float64,2}:
+        │    100×100 Matrix{Float64}:
         │     1.00001  1.00001  1.00001  1.00001  …  1.00001  1.00001  1.00001
         │     1.00001  1.00001  1.00001  1.00001     1.00001  1.00001  1.00001
         │     1.00001  1.00001  1.00001  1.00001     1.00001  1.00001  1.00001
-        │     ⋮                                   ⋱                           EOL
+        │     ⋮                                   ⋱                    EOL
         │     1.00001  1.00001  1.00001  1.00001     1.00001  1.00001  1.00001
         │     1.00001  1.00001  1.00001  1.00001     1.00001  1.00001  1.00001
         │   b =
-        │    10×10 Array{Float64,2}:
+        │    10×10 Matrix{Float64}:
         │     2.00002  2.00002  2.00002  2.00002  …  2.00002  2.00002  2.00002
         │     2.00002  2.00002  2.00002  2.00002     2.00002  2.00002  2.00002
         │     2.00002  2.00002  2.00002  2.00002     2.00002  2.00002  2.00002
-        │     ⋮                                   ⋱                           EOL
+        │     ⋮                                   ⋱                    EOL
         │     2.00002  2.00002  2.00002  2.00002     2.00002  2.00002  2.00002
         │     2.00002  2.00002  2.00002  2.00002     2.00002  2.00002  2.00002
         └ SUFFIX
@@ -231,7 +234,7 @@ end
         """
         ┌ PREFIX msg
         │   a =
-        │    10×10 Array{Float64,2}:
+        │    10×10 Matrix{Float64}:
         │     1.00001  1.00001  1.00001  1.00001  1.00001  1.00001  1.00001  1.00001  1.00001  1.00001
         │     1.00001  1.00001  1.00001  1.00001  1.00001  1.00001  1.00001  1.00001  1.00001  1.00001
         │     1.00001  1.00001  1.00001  1.00001  1.00001  1.00001  1.00001  1.00001  1.00001  1.00001
@@ -254,6 +257,22 @@ end
     \e[36m\e[1m└ \e[22m\e[39m\e[90mSUFFIX\e[39m
     """
 
+end
+
+@testset "exported names" begin
+    m = Module(:ExportedLoggingNames)
+    include_string(m, """
+        using Logging
+        function run()
+            BelowMinLevel === Logging.BelowMinLevel &&
+            Debug === Logging.Debug &&
+            Info === Logging.Info &&
+            Warn === Logging.Warn &&
+            Error === Logging.Error &&
+            AboveMaxLevel === Logging.AboveMaxLevel
+        end
+        """)
+    @test m.run()
 end
 
 end

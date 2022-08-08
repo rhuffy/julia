@@ -9,17 +9,14 @@ JCPPFLAGS += $(CPPFLAGS)
 JLDFLAGS += $(LDFLAGS)
 
 SRCS := hashing timefuncs ptrhash operators utf8 ios htable bitvector \
-	int2str libsupportinit arraylist strtod
+	int2str libsupportinit arraylist strtod rle
 ifeq ($(OS),WINNT)
-SRCS += asprintf strptime win32_ucontext
+SRCS += asprintf strptime
 ifeq ($(ARCH),i686)
 SRCS += _setjmp.win32
 else ifeq ($(ARCH),x86_64)
 SRCS += _setjmp.win64
 endif
-endif
-ifeq ($(USEMSVC), 1)
-SRCS += dirname
 endif
 
 HEADERS := $(wildcard *.h)
@@ -32,10 +29,8 @@ ifeq ($(DISABLE_LIBUV),0)
 HEADERS += $(LIBUV_INC)/uv.h
 FLAGS += -I$(LIBUV_INC)
 endif
-ifneq ($(USEMSVC), 1)
 FLAGS += -Wall -Wno-strict-aliasing -fvisibility=hidden -Wpointer-arith -Wundef
 JCFLAGS += -Wold-style-definition -Wstrict-prototypes -Wc++-compat
-endif
 
 DEBUGFLAGS += $(FLAGS)
 SHIPFLAGS += $(FLAGS)
@@ -49,19 +44,10 @@ $(BUILDDIR)/%.o: $(SRCDIR)/%.c $(HEADERS) | $(BUILDDIR)
 	@$(call PRINT_CC, $(CC) $(JCPPFLAGS) $(JCFLAGS) $(SHIPFLAGS) $(DISABLE_ASSERTIONS) -c $< -o $@)
 $(BUILDDIR)/%.dbg.obj: $(SRCDIR)/%.c $(HEADERS) | $(BUILDDIR)
 	@$(call PRINT_CC, $(CC) $(JCPPFLAGS) $(JCFLAGS) $(DEBUGFLAGS) -c $< -o $@)
-ifneq ($(USEMSVC), 1)
 $(BUILDDIR)/%.o: $(SRCDIR)/%.S | $(BUILDDIR)
 	@$(call PRINT_CC, $(CC) $(JCPPFLAGS) $(SHIPFLAGS) -c $< -o $@)
 $(BUILDDIR)/%.dbg.obj: $(SRCDIR)/%.S | $(BUILDDIR)
 	@$(call PRINT_CC, $(CC) $(JCPPFLAGS) $(DEBUGFLAGS) -c $< -o $@)
-else
-$(BUILDDIR)/%.o: $(SRCDIR)/%.S | $(BUILDDIR)
-	@$(call PRINT_CC, $(CPP) -P $(JCPPFLAGS) $(SHIPFLAGS) $<)
-	@$(call PRINT_CC, $(AS) $(JCPPFLAGS) $(SHIPFLAGS) -Fo $@ -c $*.i)
-$(BUILDDIR)/%.dbg.obj: $(SRCDIR)/%.S | $(BUILDDIR)
-	@$(call PRINT_CC, $(CPP) -P $(JCPPFLAGS) $(DEBUGFLAGS) $<)
-	@$(call PRINT_CC, $(AS) $(JCPPFLAGS) $(DEBUGFLAGS) -Fo $@ -c $*.i)
-endif
 
 $(BUILDDIR)/host/Makefile:
 	mkdir -p $(BUILDDIR)/host
