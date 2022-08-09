@@ -208,7 +208,7 @@ void jl_foreigncall_get_syms(jl_value_t *target, jl_sym_t **fname, jl_sym_t **li
     }
 }
 
-SECT_INTERP jl_value_t *instantiate_foreigncall_rt(jl_value_t *rt, interpreter_state *s) {
+jl_value_t *instantiate_foreigncall_rt(jl_value_t *rt, interpreter_state *s) {
     jl_unionall_t *unionall_env = (s->mi && jl_is_method(s->mi->def.method) && jl_is_unionall(s->mi->def.method->sig))
         ? (jl_unionall_t*)s->mi->def.method->sig
         : NULL;
@@ -220,7 +220,7 @@ SECT_INTERP jl_value_t *instantiate_foreigncall_rt(jl_value_t *rt, interpreter_s
 
 // This is a hook that can be replaced at link time if an interpreter version
 // if foreigncall is available.
-SECT_INTERP __attribute__((weak)) jl_value_t *eval_foreigncall(jl_sym_t *fname, jl_sym_t *libname, interpreter_state *s, jl_value_t **args, size_t nargs)
+__attribute__((weak)) jl_value_t *eval_foreigncall(jl_sym_t *fname, jl_sym_t *libname, interpreter_state *s, jl_value_t **args, size_t nargs)
 {
     return NULL;
 }
@@ -229,7 +229,7 @@ SECT_INTERP __attribute__((weak)) jl_value_t *eval_foreigncall(jl_sym_t *fname, 
 extern jl_value_t *jl_do_jscall(char *libname, char *fname, jl_value_t **args, size_t nargs);
 #endif
 
-SECT_INTERP jl_value_t *eval_value(jl_value_t *e, interpreter_state *s)
+jl_value_t *eval_value(jl_value_t *e, interpreter_state *s)
 {
     jl_code_info_t *src = s->src;
     if (jl_is_ssavalue(e)) {
@@ -423,6 +423,7 @@ SECT_INTERP jl_value_t *eval_value(jl_value_t *e, interpreter_state *s)
             jl_error("Encountered unsupported foreigncall in interpreter (this should not happen on supported platforms).");
         }
         return result;
+    }
     else if (head == jl_cfunction_sym) {
         jl_error("`cfunction` requires the compiler");
     }

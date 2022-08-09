@@ -1164,6 +1164,12 @@ JL_DLLEXPORT double jl_stat_ctime(char *statbuf)
     return (double)s->st_ctim.tv_sec + (double)s->st_ctim.tv_nsec * 1e-9;
 }
 
+JL_DLLEXPORT int jl_is_file(char *fname)
+{
+    uv_stat_t stbuf; 
+    return !(jl_stat(fname, (char*)&stbuf) != 0 || (stbuf.st_mode & S_IFMT) != S_IFREG);
+}
+
 #ifdef __cplusplus
 }
 #endif

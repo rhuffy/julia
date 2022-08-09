@@ -2043,8 +2043,8 @@ JL_DLLEXPORT int jl_process_events(void);
 #ifndef JL_DISABLE_LIBUV
 JL_DLLEXPORT struct uv_loop_s *jl_global_event_loop(void);
 JL_DLLEXPORT void jl_close_uv(struct uv_handle_s *handle);
-JL_DLLEXPORT int jl_tcp_bind(uv_tcp_t *handle, uint16_t port, uint32_t host,
-                             unsigned int flags);
+JL_DLLEXPORT int jl_tcp_bind(uv_tcp_t *handle, uint16_t port, void *host,
+                             unsigned int flags, int ipv6);
 
 typedef struct {
     void *data;

@@ -14,7 +14,7 @@ extern "C" {
 
 extern jl_ptls_t *jl_all_tls_states JL_GLOBALLY_ROOTED; /* thread local storage */
 
-#ifdef JULIA_ENABLE_THREADING
+// #ifdef JULIA_ENABLE_THREADING
 typedef struct _jl_threadarg_t {
     int16_t tid;
     uv_barrier_t *barrier;
@@ -27,7 +27,7 @@ jl_ptls_t jl_init_threadtls(int16_t tid);
 // provided by a threading infrastructure
 void jl_init_threadinginfra(void);
 void jl_threadfun(void *arg);
-#endif
+// #endif
 
 #ifdef __cplusplus
 }

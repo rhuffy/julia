@@ -1521,7 +1521,7 @@ static void jl_update_all_fptrs(jl_serializer_state *s)
             } else {
                 fptr = ((void**)fbase)[i];
             }
-            if (specfunc)
+            if (specfunc) {
                 codeinst->specptr.fptr = fptr;
                 codeinst->isspecsig = 1; // TODO: set only if confirmed to be true
             }

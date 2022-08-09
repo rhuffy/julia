@@ -45,7 +45,6 @@ endif
 ifeq ($(USE_SYSTEM_CSL), 0)
 DEP_LIBS += csl
 endif
-endif
 
 ifeq ($(USE_SYSTEM_LIBUV), 0)
 ifeq ($(DISABLE_LIBUV), 0)
