@@ -296,19 +296,16 @@ function rand end
 function randn end
 
 # I/O
+include("cmd.jl")
+if !DISABLE_LIBUV
+include("libuv.jl")
 include("asyncevent.jl")
 include("iostream.jl")
 include("stream.jl")
 include("filesystem.jl")
 using .Filesystem
-include("cmd.jl")
-if !DISABLE_LIBUV
-include("uvevent.jl")
-include("libuv.jl")
-include("stream.jl")
 include("process.jl")
 end
-include("grisu/grisu.jl") # TODO(rhuffman) should this be disabled?
 include("ttyhascolor.jl") # TODO(rhuffman) should this be disabled?
 include("secretbuffer.jl")
 

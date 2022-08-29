@@ -1353,7 +1353,7 @@ end
 countlines(f::AbstractString; eol::AbstractChar = '\n') = open(io->countlines(io, eol = eol), f)::Int
 
 """
-   displaysize([io::IO]) -> (lines, columns)
+    displaysize([io::IO]) -> (lines, columns)
 
 Return the nominal size of the screen that may be used for rendering output to
 this `IO` object.
@@ -1370,7 +1370,7 @@ julia> withenv("LINES" => 30, "COLUMNS" => 100) do
 
 To get your TTY size,
 
-```julia
+```julia-repl
 julia> displaysize(stdout)
 (34, 147)
 ```

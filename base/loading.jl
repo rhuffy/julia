@@ -353,9 +353,6 @@ function identify_loaded_package(name::String)
     end
     return nothing
 end
-    end
-    return nothing
-end
 function identify_package(name::String)::Union{Nothing,PkgId}
     lp = load_path()
     if isempty(lp)
