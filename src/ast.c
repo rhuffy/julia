@@ -238,19 +238,25 @@ static void jl_init_ast_ctx(jl_ast_context_t *ctx) JL_NOTSAFEPOINT
 }
 
 // There should be no GC allocation while holding this lock
+#ifndef JL_DISABLE_LIBUV
 static uv_mutex_t flisp_lock;
+#endif
 static jl_ast_context_t *jl_ast_ctx_freed = NULL;
 
 static jl_ast_context_t *jl_ast_ctx_enter(jl_module_t *m) JL_GLOBALLY_ROOTED JL_NOTSAFEPOINT
 {
     JL_SIGATOMIC_BEGIN();
+#ifndef JL_DISABLE_LIBUV
     uv_mutex_lock(&flisp_lock);
+#endif
     jl_ast_context_t *ctx = jl_ast_ctx_freed;
     if (ctx != NULL) {
         jl_ast_ctx_freed = ctx->next;
         ctx->next = NULL;
     }
+#ifndef JL_DISABLE_LIBUV
     uv_mutex_unlock(&flisp_lock);
+#endif
     if (ctx == NULL) {
         // Construct a new one if we can't find any
         ctx = (jl_ast_context_t*)calloc(1, sizeof(jl_ast_context_t));
@@ -262,11 +268,15 @@ static jl_ast_context_t *jl_ast_ctx_enter(jl_module_t *m) JL_GLOBALLY_ROOTED JL_
 
 static void jl_ast_ctx_leave(jl_ast_context_t *ctx)
 {
+#ifndef JL_DISABLE_LIBUV
     uv_mutex_lock(&flisp_lock);
+#endif
     ctx->module = NULL;
     ctx->next = jl_ast_ctx_freed;
     jl_ast_ctx_freed = ctx;
+#ifndef JL_DISABLE_LIBUV
     uv_mutex_unlock(&flisp_lock);
+#endif
     JL_SIGATOMIC_END();
 }
 
@@ -274,7 +284,9 @@ void jl_init_flisp(void)
 {
     if (jl_ast_ctx_freed)
         return;
+#ifndef JL_DISABLE_LIBUV
     uv_mutex_init(&flisp_lock);
+#endif
     jl_init_ast_ctx(&jl_ast_main_ctx);
     // To match the one in jl_ast_ctx_leave
     JL_SIGATOMIC_BEGIN();

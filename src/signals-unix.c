@@ -228,7 +228,9 @@ static int is_addr_on_stack(jl_task_t *ct, void *addr)
 static void sigdie_handler(int sig, siginfo_t *info, void *context)
 {
     signal(sig, SIG_DFL);
+#ifndef JL_DISABLE_LIBUV
     uv_tty_reset_mode();
+#endif
     if (sig == SIGILL)
         jl_show_sigill(context);
     jl_critical_error(sig, info->si_code, jl_to_bt_context(context), jl_get_current_task());
@@ -454,7 +456,9 @@ static void jl_try_deliver_sigint(void)
 {
     jl_ptls_t ptls2 = jl_atomic_load_relaxed(&jl_all_tls_states)[0];
     jl_safepoint_enable_sigint();
+#ifndef JL_DISABLE_LIBUV
     jl_wake_libuv();
+#endif
     jl_atomic_store_release(&ptls2->signal_request, 2);
     // This also makes sure `sleep` is aborted.
     pthread_kill(ptls2->system_id, SIGUSR2);
@@ -865,7 +869,9 @@ static void *signal_listener(void *arg)
 #ifdef HAVE_KEVENT
             signal(sig, SIG_DFL);
 #endif
+#ifndef JL_DISABLE_LIBUV
             uv_tty_reset_mode();
+#endif
             thread0_exit_count++;
             fflush(NULL);
             if (thread0_exit_count > 1) {
@@ -979,7 +985,7 @@ static void *signal_listener(void *arg)
                 jl_ptls_t ptls2 = jl_atomic_load_relaxed(&jl_all_tls_states)[idx];
                 nrunning += !jl_atomic_load_relaxed(&ptls2->sleep_check_state);
             }
-            jl_safe_printf("\ncmd: %s %d running %d of %d\n", jl_options.julia_bin ? jl_options.julia_bin : "julia", uv_os_getpid(), nrunning, nthreads);
+            jl_safe_printf("\ncmd: %s %d running %d of %d\n", jl_options.julia_bin ? jl_options.julia_bin : "julia", jl_getpid(), nrunning, nthreads);
 #endif
 
             jl_safe_printf("\nsignal (%d): %s\n", sig, strsignal(sig));

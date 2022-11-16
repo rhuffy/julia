@@ -135,6 +135,7 @@ static void jl_prep_sanitizers(void)
 #endif
 }
 
+#ifndef JL_DISABLE_LIBUV
 struct uv_shutdown_queue_item { uv_handle_t *h; struct uv_shutdown_queue_item *next; };
 struct uv_shutdown_queue { struct uv_shutdown_queue_item *first; struct uv_shutdown_queue_item *last; };
 
@@ -196,6 +197,7 @@ static void jl_close_item_atexit(uv_handle_t *handle)
         assert(0 && "not a valid libuv handle");
     }
 }
+#endif
 
 // This prevents `ct` from returning via error handlers or other unintentional
 // means by destroying some old state before we start destroying that state in atexit hooks.
@@ -213,7 +215,7 @@ JL_DLLEXPORT void jl_exit(int exitcode)
 // external cleanup, but no internal cleanup)
 JL_DLLEXPORT void jl_raise(int signo)
 {
-    uv_tty_reset_mode();
+    jl_tty_reset_mode();
     fflush(NULL);
 #ifdef _OS_WINDOWS_
     if (signo == SIGABRT) {
@@ -292,12 +294,13 @@ JL_DLLEXPORT void jl_atexit_hook(int exitcode)
 
     // replace standard output streams with something that we can still print to
     // after the finalizers from base/stream.jl close the TTY
-    JL_STDOUT = (uv_stream_t*) STDOUT_FILENO;
-    JL_STDERR = (uv_stream_t*) STDERR_FILENO;
+    JL_STDOUT = (JL_STREAM*) STDOUT_FILENO;
+    JL_STDERR = (JL_STREAM*) STDERR_FILENO;
 
     if (ct)
         jl_gc_run_all_finalizers(ct);
 
+#ifndef JL_DISABLE_LIBUV
     uv_loop_t *loop = jl_global_event_loop();
     if (loop != NULL) {
         struct uv_shutdown_queue queue = {NULL, NULL};
@@ -336,6 +339,7 @@ JL_DLLEXPORT void jl_atexit_hook(int exitcode)
         while (uv_run(loop, UV_RUN_DEFAULT)) { }
         JL_UV_UNLOCK();
     }
+#endif
 
     // TODO: Destroy threads
 
@@ -389,7 +393,9 @@ void *jl_winsock_handle;
 extern const char *jl_crtdll_name;
 #endif
 
+#ifndef JL_DISABLE_LIBUV
 uv_loop_t *jl_io_loop;
+#endif
 
 #ifdef _OS_WINDOWS_
 static int uv_dup(uv_os_fd_t fd, uv_os_fd_t* dupfd) {
@@ -425,7 +431,7 @@ static int uv_dup(uv_os_fd_t fd, uv_os_fd_t* dupfd) {
 
     return 0;
 }
-#else
+#elif !defined(JL_DISABLE_LIBUV)
 static int uv_dup(uv_os_fd_t fd, uv_os_fd_t* dupfd) {
     if ((*dupfd = fcntl(fd, F_DUPFD_CLOEXEC, 3)) == -1)
         return -errno;
@@ -433,6 +439,7 @@ static int uv_dup(uv_os_fd_t fd, uv_os_fd_t* dupfd) {
 }
 #endif
 
+#ifndef JL_DISABLE_LIBUV
 static void *init_stdio_handle(const char *stdio, uv_os_fd_t fd, int readable)
 {
     void *handle;
@@ -514,6 +521,11 @@ static void init_stdio(void)
     JL_STDERR = (uv_stream_t*)init_stdio_handle("stderr", UV_STDERR_FD, 0);
     jl_flush_cstdio();
 }
+#else
+static void init_stdio(void)
+{
+}
+#endif
 
 int jl_isabspath(const char *in) JL_NOTSAFEPOINT
 {
@@ -556,7 +568,7 @@ static char *abspath(const char *in, int nprefix)
         else {
             size_t path_size = JL_PATH_MAX;
             char *path = (char*)malloc_s(JL_PATH_MAX);
-            if (uv_cwd(path, &path_size)) {
+            if (jl_cwd(path, &path_size)) {
                 jl_error("fatal error: unexpected error while retrieving current working directory");
             }
             out = (char*)malloc_s(path_size + 1 + sz + nprefix);
@@ -592,7 +604,7 @@ static const char *absformat(const char *in)
     // get an escaped copy of cwd
     size_t path_size = JL_PATH_MAX;
     char path[JL_PATH_MAX];
-    if (uv_cwd(path, &path_size)) {
+    if (jl_cwd(path, &path_size)) {
         jl_error("fatal error: unexpected error while retrieving current working directory");
     }
     size_t sz = strlen(in) + 1;
@@ -622,9 +634,13 @@ static void jl_resolve_sysimg_location(JL_IMAGE_SEARCH rel)
     // calling `julia_init()`
     char *free_path = (char*)malloc_s(JL_PATH_MAX);
     size_t path_size = JL_PATH_MAX;
+#ifdef JL_DISABLE_LIBUV
+    strcpy(free_path, "/julia"); path_size=6;
+#else
     if (uv_exepath(free_path, &path_size)) {
         jl_error("fatal error: unexpected error while retrieving exepath");
     }
+#endif
     if (path_size >= JL_PATH_MAX) {
         jl_error("fatal error: jl_options.julia_bin path too long");
     }
@@ -724,10 +740,13 @@ JL_DLLEXPORT void julia_init(JL_IMAGE_SEARCH rel)
     JL_MUTEX_INIT(&jl_modules_mutex);
     jl_precompile_toplevel_module = NULL;
     ios_set_io_wait_func = jl_set_io_wait;
+#ifndef JL_DISABLE_LIBUV
     jl_io_loop = uv_default_loop(); // this loop will internal events (spawning process etc.),
                                     // best to call this first, since it also initializes libuv
     jl_init_uv();
     init_stdio();
+#endif
+    jl_init_signal_async();
     restore_fp_env();
     restore_signals();
     jl_init_intrinsic_properties();
@@ -855,6 +874,15 @@ static NOINLINE void _finish_julia_init(JL_IMAGE_SEARCH rel, jl_ptls_t ptls, jl_
 static jl_value_t *core(const char *name)
 {
     return jl_get_global(jl_core_module, jl_symbol(name));
+}
+
+JL_DLLEXPORT int jl_getpid(void)
+{
+#ifdef _OS_WINDOWS_
+    return GetCurrentProcessId();
+#else
+    return getpid();
+#endif
 }
 
 // fetch references to things defined in boot.jl

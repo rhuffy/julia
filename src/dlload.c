@@ -239,7 +239,6 @@ JL_DLLEXPORT void *jl_load_dynamic_library(const char *modname, unsigned flags, 
 #ifdef _OS_WINDOWS_
     int err;
 #endif
-    uv_stat_t stbuf;
     void *handle;
     int abspath;
     int is_atpath;
@@ -333,7 +332,7 @@ JL_DLLEXPORT void *jl_load_dynamic_library(const char *modname, unsigned flags, 
                     }
 #endif
                     // bail out and show the error if file actually exists
-                    if (jl_stat(path, (char*)&stbuf) == 0)
+                    if (!jl_is_file(path))
                         goto notfound;
                 }
             }
@@ -353,7 +352,7 @@ JL_DLLEXPORT void *jl_load_dynamic_library(const char *modname, unsigned flags, 
         break; // LoadLibrary already tested the rest
 #else
         // bail out and show the error if file actually exists
-        if (jl_stat(path, (char*)&stbuf) == 0)
+        if (!jl_is_file(path))
             break;
 #endif
     }

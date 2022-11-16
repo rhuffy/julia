@@ -12,7 +12,9 @@
 #include "support/strtod.h"
 #include "gc-alloc-profiler.h"
 #include "support/rle.h"
+#ifndef JL_DISABLE_LIBUV
 #include <uv.h>
+#endif
 #include <llvm-c/Types.h>
 #include <llvm-c/Orc.h>
 #if !defined(_WIN32)
@@ -168,7 +170,9 @@ extern JL_DLLEXPORT uintptr_t __stack_chk_guard;
 // If this is detected in a backtrace of segfault, it means the functions
 // that use this value must be reworked into their async form with cb arg
 // provided and with JL_UV_LOCK used around the calls
+#ifndef JL_DISABLE_LIBUV
 static uv_loop_t *const unused_uv_loop_arg = (uv_loop_t *)0xBAD10;
+#endif
 
 extern jl_mutex_t jl_uv_mutex;
 extern _Atomic(int) jl_uv_n_waiters;
@@ -304,7 +308,9 @@ jl_value_t *jl_gc_pool_alloc_noinline(jl_ptls_t ptls, int pool_offset,
                                    int osize);
 jl_value_t *jl_gc_big_alloc_noinline(jl_ptls_t ptls, size_t allocsz);
 JL_DLLEXPORT int jl_gc_classify_pools(size_t sz, int *osize);
+#ifndef JL_DISABLE_LIBUV
 extern uv_mutex_t gc_perm_lock;
+#endif
 void *jl_gc_perm_alloc_nolock(size_t sz, int zero,
     unsigned align, unsigned offset) JL_NOTSAFEPOINT;
 void *jl_gc_perm_alloc(size_t sz, int zero,
@@ -633,8 +639,10 @@ void jl_install_thread_signal_handler(jl_ptls_t ptls);
 
 JL_DLLEXPORT jl_fptr_args_t jl_get_builtin_fptr(jl_value_t *b);
 
+#ifndef JL_DISABLE_LIBUV
 extern uv_loop_t *jl_io_loop;
-void jl_uv_flush(uv_stream_t *stream);
+#endif
+void jl_uv_flush(JL_STREAM *stream);
 
 typedef struct jl_typeenv_t {
     jl_tvar_t *var;
@@ -1243,6 +1251,8 @@ JL_DLLEXPORT const char *jl_dlfind_win32(const char *name);
 
 // libuv wrappers:
 JL_DLLEXPORT int jl_fs_rename(const char *src_path, const char *dst_path);
+JL_DLLEXPORT int jl_cwd(char *buffer, size_t *size);
+JL_DLLEXPORT int jl_is_file(char *fname);
 
 // -- Runtime intrinsics -- //
 JL_DLLEXPORT const char *jl_intrinsic_name(int f) JL_NOTSAFEPOINT;

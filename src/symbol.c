@@ -88,15 +88,21 @@ jl_sym_t *_jl_symbol(const char *str, size_t len) JL_NOTSAFEPOINT // (or throw)
     _Atomic(jl_sym_t*) *slot;
     jl_sym_t *node = symtab_lookup(&symtab, str, len, &slot);
     if (node == NULL) {
+#ifndef JL_DISABLE_LIBUV
         uv_mutex_lock(&gc_perm_lock);
+#endif
         // Someone might have updated it, check and look up again
         if (jl_atomic_load_relaxed(slot) != NULL && (node = symtab_lookup(slot, str, len, &slot))) {
+#ifndef JL_DISABLE_LIBUV
             uv_mutex_unlock(&gc_perm_lock);
+#endif
             return node;
         }
         node = mk_symbol(str, len);
         jl_atomic_store_release(slot, node);
+#ifndef JL_DISABLE_LIBUV
         uv_mutex_unlock(&gc_perm_lock);
+#endif
     }
     return node;
 }

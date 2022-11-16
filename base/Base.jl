@@ -287,7 +287,7 @@ include("version.jl")
 # system & environment
 include("sysinfo.jl")
 include("libc.jl")
-using .Libc: getpid, gethostname, time
+using .Libc: getpid, gethostname, time, RawFD
 
 # Logging
 include("logging.jl")
@@ -311,16 +311,19 @@ function rand end
 function randn end
 
 # I/O
-include("libuv.jl")
 include("asyncevent.jl")
-include("iostream.jl")
-include("stream.jl")
 include("filesystem.jl")
 using .Filesystem
 include("cmd.jl")
-include("process.jl")
 include("ttyhascolor.jl")
 include("secretbuffer.jl")
+
+if !DISABLE_LIBUV
+include("libuv.jl")
+include("iostream.jl")
+include("stream.jl")
+include("process.jl")
+end
 
 # core math functions
 include("floatfuncs.jl")
@@ -411,7 +414,9 @@ include("errorshow.jl")
 include("initdefs.jl")
 
 # worker threads
+if !DISABLE_LIBUV
 include("threadcall.jl")
+end
 
 # code loading
 include("uuid.jl")

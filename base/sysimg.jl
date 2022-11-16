@@ -35,38 +35,38 @@ let
         :Artifacts,
         :Base64,
         :CRC32c,
-        :FileWatching,
+        Base.DISABLE_LIBUV ? nothing : :FileWatching,
         :Libdl,
         :Logging,
         :Mmap,
         :NetworkOptions,
         :SHA,
-        :Serialization,
-        :Sockets,
+        Base.DISABLE_LIBUV ? nothing : :Serialization,
+        Base.DISABLE_LIBUV ? nothing : :Sockets,
         :Unicode,
 
         # 1-depth packages
-        :LinearAlgebra,
+        Base.DISABLE_LIBUV ? nothing : :LinearAlgebra,
         :Markdown,
         :Printf,
-        :Random,
+        Base.DISABLE_LIBUV ? nothing : :Random,
         :Tar,
 
         # 2-depth packages
         :Dates,
-        :Distributed,
-        :Future,
+        Base.DISABLE_LIBUV ? nothing : :Distributed,
+        Base.DISABLE_LIBUV ? nothing : :Future,
         :InteractiveUtils,
-        :LibGit2,
+        Base.DISABLE_LIBUV ? nothing : :LibGit2,
         :Profile,
-        :SparseArrays,
-        :UUIDs,
+        Base.DISABLE_LIBUV ? nothing : :SparseArrays,
+        Base.DISABLE_LIBUV ? nothing : :UUIDs,
 
         # 3-depth packages
-        :REPL,
-        :SharedArrays,
+        Base.DISABLE_LIBUV ? nothing : :REPL,
+        Base.DISABLE_LIBUV ? nothing : :SharedArrays,
         :TOML,
-        :Test,
+        Base.DISABLE_LIBUV ? nothing : :Test,
 
         # 4-depth packages
         :LibCURL,
@@ -75,11 +75,12 @@ let
         :Downloads,
 
         # 6-depth packages
-        :Pkg,
+        Base.DISABLE_LIBUV ? nothing : :Pkg,
 
         # 7-depth packages
         :LazyArtifacts,
     ]
+    filter!(x -> x !== nothing, stdlibs)
     # PackageCompiler can filter out stdlibs so it can be empty
     maxlen = maximum(textwidth.(string.(stdlibs)); init=0)
 

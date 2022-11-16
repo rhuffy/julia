@@ -19,14 +19,19 @@ SRCS += _setjmp.win64
 endif
 endif
 
-HEADERS := $(wildcard *.h) $(LIBUV_INC)/uv.h
+HEADERS := $(wildcard *.h)
 
 OBJS := $(SRCS:%=$(BUILDDIR)/%.o)
 DOBJS := $(SRCS:%=$(BUILDDIR)/%.dbg.obj)
 
-FLAGS := $(HFILEDIRS:%=-I%) -I$(LIBUV_INC) -I$(UTF8PROC_INC) -DLIBRARY_EXPORTS -DUTF8PROC_EXPORTS
+FLAGS := $(HFILEDIRS:%=-I%) -I$(UTF8PROC_INC) -DLIBRARY_EXPORTS -DUTF8PROC_EXPORTS
 FLAGS += -Wall -Wno-strict-aliasing -fvisibility=hidden -Wpointer-arith -Wundef
 JCFLAGS += -Wold-style-definition -Wstrict-prototypes -Wc++-compat
+
+ifeq ($(DISABLE_LIBUV),0)
+HEADERS += $(LIBUV_INC)/uv.h
+FLAGS += -I$(LIBUV_INC)
+endif
 
 DEBUGFLAGS += $(FLAGS)
 SHIPFLAGS += $(FLAGS)

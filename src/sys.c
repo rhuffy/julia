@@ -100,127 +100,6 @@ JL_DLLEXPORT int32_t jl_nb_available(ios_t *s)
     return (int32_t)(s->size - s->bpos);
 }
 
-// --- dir/file stuff ---
-
-JL_DLLEXPORT int jl_sizeof_uv_fs_t(void) { return sizeof(uv_fs_t); }
-JL_DLLEXPORT char *jl_uv_fs_t_ptr(uv_fs_t *req) { return (char*)req->ptr; }
-JL_DLLEXPORT char *jl_uv_fs_t_path(uv_fs_t *req) { return (char*)req->path; }
-
-// --- stat ---
-JL_DLLEXPORT int jl_sizeof_stat(void) { return sizeof(uv_stat_t); }
-
-JL_DLLEXPORT int32_t jl_stat(const char *path, char *statbuf) JL_NOTSAFEPOINT
-{
-    uv_fs_t req;
-    int ret;
-
-    // Ideally one would use the statbuf for the storage in req, but
-    // it's not clear that this is possible using libuv
-    ret = uv_fs_stat(unused_uv_loop_arg, &req, path, NULL);
-    if (ret == 0)
-        memcpy(statbuf, req.ptr, sizeof(uv_stat_t));
-    uv_fs_req_cleanup(&req);
-    return ret;
-}
-
-JL_DLLEXPORT int32_t jl_lstat(const char *path, char *statbuf)
-{
-    uv_fs_t req;
-    int ret;
-
-    ret = uv_fs_lstat(unused_uv_loop_arg, &req, path, NULL);
-    if (ret == 0)
-        memcpy(statbuf, req.ptr, sizeof(uv_stat_t));
-    uv_fs_req_cleanup(&req);
-    return ret;
-}
-
-JL_DLLEXPORT int32_t jl_fstat(uv_os_fd_t fd, char *statbuf)
-{
-    uv_fs_t req;
-    int ret;
-
-    ret = uv_fs_fstat(unused_uv_loop_arg, &req, fd, NULL);
-    if (ret == 0)
-        memcpy(statbuf, req.ptr, sizeof(uv_stat_t));
-    uv_fs_req_cleanup(&req);
-    return ret;
-}
-
-JL_DLLEXPORT unsigned int jl_stat_dev(char *statbuf)
-{
-    return ((uv_stat_t*)statbuf)->st_dev;
-}
-
-JL_DLLEXPORT unsigned int jl_stat_ino(char *statbuf)
-{
-    return ((uv_stat_t*)statbuf)->st_ino;
-}
-
-JL_DLLEXPORT unsigned int jl_stat_mode(char *statbuf)
-{
-    return ((uv_stat_t*)statbuf)->st_mode;
-}
-
-JL_DLLEXPORT unsigned int jl_stat_nlink(char *statbuf)
-{
-    return ((uv_stat_t*)statbuf)->st_nlink;
-}
-
-JL_DLLEXPORT unsigned int jl_stat_uid(char *statbuf)
-{
-    return ((uv_stat_t*)statbuf)->st_uid;
-}
-
-JL_DLLEXPORT unsigned int jl_stat_gid(char *statbuf)
-{
-    return ((uv_stat_t*)statbuf)->st_gid;
-}
-
-JL_DLLEXPORT unsigned int jl_stat_rdev(char *statbuf)
-{
-    return ((uv_stat_t*)statbuf)->st_rdev;
-}
-
-JL_DLLEXPORT uint64_t jl_stat_size(char *statbuf)
-{
-    return ((uv_stat_t*)statbuf)->st_size;
-}
-
-JL_DLLEXPORT uint64_t jl_stat_blksize(char *statbuf)
-{
-    return ((uv_stat_t*)statbuf)->st_blksize;
-}
-
-JL_DLLEXPORT uint64_t jl_stat_blocks(char *statbuf)
-{
-    return ((uv_stat_t*)statbuf)->st_blocks;
-}
-
-/*
-// atime is stupid, let's not support it
-JL_DLLEXPORT double jl_stat_atime(char *statbuf)
-{
-  uv_stat_t *s;
-  s = (uv_stat_t*)statbuf;
-  return (double)s->st_atim.tv_sec + (double)s->st_atim.tv_nsec * 1e-9;
-}
-*/
-
-JL_DLLEXPORT double jl_stat_mtime(char *statbuf)
-{
-    uv_stat_t *s;
-    s = (uv_stat_t*)statbuf;
-    return (double)s->st_mtim.tv_sec + (double)s->st_mtim.tv_nsec * 1e-9;
-}
-
-JL_DLLEXPORT double jl_stat_ctime(char *statbuf)
-{
-    uv_stat_t *s;
-    s = (uv_stat_t*)statbuf;
-    return (double)s->st_ctim.tv_sec + (double)s->st_ctim.tv_nsec * 1e-9;
-}
-
 JL_DLLEXPORT unsigned long jl_getuid(void)
 {
 #ifdef _OS_WINDOWS_
@@ -435,6 +314,7 @@ JL_DLLEXPORT int jl_cpu_threads(void) JL_NOTSAFEPOINT
 
 JL_DLLEXPORT int jl_effective_threads(void) JL_NOTSAFEPOINT
 {
+#ifndef JL_DISABLE_LIBUV
     int cpu = jl_cpu_threads();
     int masksize = uv_cpumask_size();
     if (masksize < 0 || jl_running_under_rr(0))
@@ -454,6 +334,9 @@ JL_DLLEXPORT int jl_effective_threads(void) JL_NOTSAFEPOINT
     }
     free(cpumask);
     return n < cpu ? n : cpu;
+#else
+    return 1;
+#endif
 }
 
 
@@ -461,7 +344,14 @@ JL_DLLEXPORT int jl_effective_threads(void) JL_NOTSAFEPOINT
 // Returns time in nanosec
 JL_DLLEXPORT uint64_t jl_hrtime(void) JL_NOTSAFEPOINT
 {
+#ifdef JL_DISABLE_LIBUV
+    const uint64_t NANOSEC = 1000000000;
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (((uint64_t) ts.tv_sec) * NANOSEC + ts.tv_nsec);
+#else
     return uv_hrtime();
+#endif
 }
 
 // -- iterating the environment --
@@ -751,11 +641,13 @@ JL_DLLEXPORT void jl_srand(uint64_t rngseed) JL_NOTSAFEPOINT
 void jl_init_rand(void) JL_NOTSAFEPOINT
 {
     uint64_t rngseed;
+#ifndef JL_DISABLE_LIBUV
     if (uv_random(NULL, NULL, &rngseed, sizeof(rngseed), 0, NULL)) {
         ios_puts("WARNING: Entropy pool not available to seed RNG; using ad-hoc entropy sources.\n", ios_stderr);
         rngseed = uv_hrtime();
         rngseed ^= int64hash(uv_os_getpid());
     }
+#endif
     jl_srand(rngseed);
     srand(rngseed);
 }

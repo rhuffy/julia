@@ -314,6 +314,7 @@ function with_raw_tty(f::Function, input::TTY)
     end
 end
 
+if isdefined(@__MODULE__, :TTY)
 function getpass(input::TTY, output::IO, prompt::AbstractString)
     input === stdin || throw(ArgumentError("getpass only works for stdin"))
     with_raw_tty(stdin) do
@@ -335,6 +336,7 @@ function getpass(input::TTY, output::IO, prompt::AbstractString)
         end
         return seekstart(s)
     end
+end
 end
 
 # allow new getpass methods to be defined if stdin has been

@@ -3367,7 +3367,7 @@ static int _jl_gc_collect(jl_ptls_t ptls, jl_gc_collection_t collection)
             sweep_full = 1;
         }
         size_t maxmem = 0;
-#ifdef _P64
+#if defined(_P64) && !defined(JL_DISABLE_LIBUV)
         // on a big memory machine, increase max_collect_interval to totalmem / nthreads / 2
         maxmem = total_mem / gc_n_threads / 2;
 #endif

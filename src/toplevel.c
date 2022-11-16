@@ -1131,7 +1131,7 @@ JL_DLLEXPORT jl_value_t *jl_prepend_cwd(jl_value_t *str)
 {
     size_t sz = 1024;
     char path[1024];
-    int c = uv_cwd(path, &sz);
+    int c = jl_cwd(path, &sz);
     if (c < 0) {
         jl_errorf("could not get current directory");
     }

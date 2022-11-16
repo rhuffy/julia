@@ -16,8 +16,11 @@ JLDFLAGS += $(LDFLAGS)
 FLAGS := \
 	-D_GNU_SOURCE -I$(BUILDDIR) -I$(SRCDIR) \
 	-I$(SRCDIR)/flisp -I$(SRCDIR)/support \
-	-I$(LIBUV_INC) -I$(build_includedir) \
+	-I$(build_includedir) \
 	-I$(JULIAHOME)/deps/valgrind
+ifeq ($(DISABLE_LIBUV), 0)
+FLAGS += -I$(LIBUV_INC)
+endif
 FLAGS += -Wall -Wno-strict-aliasing -fno-omit-frame-pointer -fvisibility=hidden -fno-common \
 		 -Wno-comment -Wpointer-arith -Wundef
 ifeq ($(USEGCC),1) # GCC bug #25509 (void)__attribute__((warn_unused_result))
@@ -42,11 +45,21 @@ endif
 
 SRCS := \
 	jltypes gf typemap smallintset ast builtins module interpreter symbol \
-	dlload sys init task array dump staticdata toplevel jl_uv datatype \
+	dlload sys init task array dump staticdata toplevel datatype \
 	simplevector runtime_intrinsics precompile jloptions \
 	threading partr stackwalk gc gc-debug gc-pages gc-stacks gc-alloc-profiler method \
 	jlapi signal-handling safepoint timing subtype rtutils gc-heap-snapshot \
 	crc32c APInt-C processor ircode opaque_closure codegen-stubs coverage runtime_ccall
+
+ifeq ($(DISABLE_LIBUV),0)
+SRCS += jl_uv
+else
+SRCS += jl_antiuv
+endif
+
+ifneq ($(JULIA_THREADS), 0)
+SRCS += threadgroup
+endif
 
 RT_LLVMLINK :=
 CG_LLVMLINK :=
@@ -95,8 +108,10 @@ endif
 # headers are used for dependency tracking, while public headers will be part of the dist
 UV_HEADERS :=
 ifeq ($(USE_SYSTEM_LIBUV),0)
+ifeq ($(DISABLE_LIBUV),0)
 UV_HEADERS += uv.h
 UV_HEADERS += uv/*.h
+endif
 endif
 PUBLIC_HEADERS := $(BUILDDIR)/julia_version.h $(wildcard $(SRCDIR)/support/*.h) $(addprefix $(SRCDIR)/,julia.h julia_assert.h julia_threads.h julia_fasttls.h julia_locks.h julia_atomics.h jloptions.h)
 ifeq ($(OS),WINNT)
@@ -236,11 +251,18 @@ define public_header_target
 $$(build_includedir)/julia/$$(notdir $(1)): $(1) | $$(build_includedir)/julia
 	$$(INSTALL_F) $$^ $$(build_includedir)/julia/
 endef
-$(foreach HEADER,$(PUBLIC_HEADERS) $(LIBUV_INC)/uv.h,$(eval $(call public_header_target,$(HEADER))))
 
+ifeq ($(DISABLE_LIBUV), 0)
+LIBUV_HEADER := $(LIBUV_INC)/uv.h
+endif
+
+$(foreach HEADER,$(PUBLIC_HEADERS) $(LIBUV_HEADER),$(eval $(call public_header_target,$(HEADER))))
+
+ifeq ($(DISABLE_LIBUV), 0)
 $(eval $(call dir_target,$(build_includedir)/julia/uv))
 $(build_includedir)/julia/uv/*.h: $(LIBUV_INC)/uv/*.h | $(build_includedir)/julia/uv
 	$(INSTALL_F) $^ $(build_includedir)/julia/uv
+endif
 
 libccalltest: $(build_shlibdir)/libccalltest.$(SHLIB_EXT)
 libllvmcalltest: $(build_shlibdir)/libllvmcalltest.$(SHLIB_EXT)
@@ -273,12 +295,12 @@ $(build_shlibdir)/libllvmcalltest.$(SHLIB_EXT): $(SRCDIR)/llvmcalltest.cpp $(LLV
 julia_flisp.boot.inc.phony: $(BUILDDIR)/julia_flisp.boot.inc
 
 $(BUILDDIR)/julia_flisp.boot.inc: $(BUILDDIR)/julia_flisp.boot $(FLISP_EXECUTABLE_release)
-	@$(call PRINT_FLISP, $(call spawn,$(FLISP_EXECUTABLE_release)) $(call cygpath_w,$(SRCDIR)/bin2hex.scm) < $< > $@)
+	@$(call PRINT_FLISP, $(call spawn,$(FLISP_EXECUTABLE_release)) --boot $(SRCDIR)/flisp/flisp.boot $(call cygpath_w,$(SRCDIR)/bin2hex.scm) < $< > $@)
 
 $(BUILDDIR)/julia_flisp.boot: $(addprefix $(SRCDIR)/,jlfrontend.scm flisp/aliases.scm flisp/profile.scm \
 		julia-parser.scm julia-syntax.scm match.scm utils.scm ast.scm macroexpand.scm mk_julia_flisp_boot.scm) \
 		$(FLISP_EXECUTABLE_release)
-	@$(call PRINT_FLISP, $(call spawn,$(FLISP_EXECUTABLE_release)) \
+	@$(call PRINT_FLISP, $(call spawn,$(FLISP_EXECUTABLE_release)) --boot $(SRCDIR)/flisp/flisp.boot \
 		$(call cygpath_w,$(SRCDIR)/mk_julia_flisp_boot.scm) $(call cygpath_w,$(dir $<)) $(notdir $<) $(call cygpath_w,$@))
 
 # additional dependency links

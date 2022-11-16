@@ -83,7 +83,9 @@ JL_DLLEXPORT int jl_profile_is_running(void)
 // They also may be re-entrant, and operating while threads are paused, so we
 // separately manage the re-entrant count behavior for safety across platforms
 // Note that we cannot safely upgrade read->write
+#ifdef JL_ENABLE_THREADING
 uv_rwlock_t debuginfo_asyncsafe;
+#endif
 #ifndef _OS_WINDOWS_
 pthread_key_t debuginfo_asyncsafe_held;
 #else
@@ -92,7 +94,9 @@ DWORD debuginfo_asyncsafe_held;
 
 void jl_init_profile_lock(void)
 {
+#ifdef JL_ENABLE_THREADING
     uv_rwlock_init(&debuginfo_asyncsafe);
+#endif
 #ifndef _OS_WINDOWS_
     pthread_key_create(&debuginfo_asyncsafe_held, NULL);
 #else
@@ -113,7 +117,9 @@ void jl_lock_profile(void)
 {
     uintptr_t held = jl_lock_profile_rd_held();
     if (held++ == 0)
+#ifdef JL_ENABLE_THREADING
         uv_rwlock_rdlock(&debuginfo_asyncsafe);
+#endif
 #ifndef _OS_WINDOWS_
     pthread_setspecific(debuginfo_asyncsafe_held, (void*)held);
 #else
@@ -126,7 +132,9 @@ JL_DLLEXPORT void jl_unlock_profile(void)
     uintptr_t held = jl_lock_profile_rd_held();
     assert(held);
     if (--held == 0)
+#ifdef JL_ENABLE_THREADING
         uv_rwlock_rdunlock(&debuginfo_asyncsafe);
+#endif
 #ifndef _OS_WINDOWS_
     pthread_setspecific(debuginfo_asyncsafe_held, (void*)held);
 #else
@@ -136,12 +144,16 @@ JL_DLLEXPORT void jl_unlock_profile(void)
 
 void jl_lock_profile_wr(void)
 {
+#ifdef JL_ENABLE_THREADING
     uv_rwlock_wrlock(&debuginfo_asyncsafe);
+#endif
 }
 
 void jl_unlock_profile_wr(void)
 {
+#ifdef JL_ENABLE_THREADING
     uv_rwlock_wrunlock(&debuginfo_asyncsafe);
+#endif
 }
 
 
@@ -198,7 +210,7 @@ static void jl_clear_force_sigint(void)
 static int jl_check_force_sigint(void)
 {
     static double accum_weight = 0;
-    uint64_t cur_time = uv_hrtime();
+    uint64_t cur_time = jl_hrtime();
     uint64_t dt = cur_time - jl_last_sigint_trigger;
     uint64_t last_t = jl_last_sigint_trigger;
     jl_last_sigint_trigger = cur_time;
@@ -244,7 +256,7 @@ static int jl_ignore_sigint(void)
     // Ignore sigint for a short time after that to avoid rethrowing sigint too
     // quickly again. (Code that has this issue is inherently racy but this is
     // an interactive feature anyway.)
-    return jl_disable_sigint_time && jl_disable_sigint_time > uv_hrtime();
+    return jl_disable_sigint_time && jl_disable_sigint_time > jl_hrtime();
 }
 
 static int exit_on_sigint = 0;
@@ -300,7 +312,9 @@ static void jl_check_profile_autostop(void)
         jl_safe_printf("\n==============================================================\n");
         jl_safe_printf("Profile collected. A report will print at the next yield point\n");
         jl_safe_printf("==============================================================\n\n");
+#ifdef JL_ENABLE_THREADING
         uv_async_send((uv_async_t*)profile_show_peek_cond_loc);
+#endif
     }
 }
 

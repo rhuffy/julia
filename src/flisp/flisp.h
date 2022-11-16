@@ -14,7 +14,9 @@
 #include "hashing.h"
 #include "ptrhash.h"
 #include "htable.h"
+#ifndef JL_DISABLE_LIBUV
 #include "uv.h"
+#endif
 
 //#define MEMDEBUG
 //#define MEMDEBUG2

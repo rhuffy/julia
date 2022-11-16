@@ -634,6 +634,11 @@ JL_DLLEXPORT void jl_safe_printf(const char *fmt, ...)
     errno = last_errno;
 }
 
+JL_DLLEXPORT int jl_cwd(char *buf, size_t *sz)
+{
+    return uv_cwd(buf, sz);
+}
+
 typedef union {
     struct sockaddr in;
     struct sockaddr_in v4;
@@ -957,6 +962,12 @@ JL_DLLEXPORT int jl_tty_set_mode(uv_tty_t *handle, int mode)
     return uv_tty_set_mode(handle, mode_enum);
 }
 
+JL_DLLEXPORT int jl_tty_reset_mode(uv_tty_t *handle, int mode)
+{
+    return uv_tty_reset_mode();
+}
+
+
 typedef int (*work_cb_t)(void *, void *, void *);
 typedef void (*notify_cb_t)(int);
 
@@ -1030,6 +1041,127 @@ JL_DLLEXPORT HANDLE jl_uv_handle(uv_stream_t *handle)
     }
 }
 #endif
+
+// --- dir/file stuff ---
+
+JL_DLLEXPORT int jl_sizeof_uv_fs_t(void) { return sizeof(uv_fs_t); }
+JL_DLLEXPORT char *jl_uv_fs_t_ptr(uv_fs_t *req) { return (char*)req->ptr; }
+JL_DLLEXPORT char *jl_uv_fs_t_path(uv_fs_t *req) { return (char*)req->path; }
+
+// --- stat ---
+JL_DLLEXPORT int jl_sizeof_stat(void) { return sizeof(uv_stat_t); }
+
+JL_DLLEXPORT int32_t jl_stat(const char *path, char *statbuf) JL_NOTSAFEPOINT
+{
+    uv_fs_t req;
+    int ret;
+
+    // Ideally one would use the statbuf for the storage in req, but
+    // it's not clear that this is possible using libuv
+    ret = uv_fs_stat(unused_uv_loop_arg, &req, path, NULL);
+    if (ret == 0)
+        memcpy(statbuf, req.ptr, sizeof(uv_stat_t));
+    uv_fs_req_cleanup(&req);
+    return ret;
+}
+
+JL_DLLEXPORT int32_t jl_lstat(const char *path, char *statbuf)
+{
+    uv_fs_t req;
+    int ret;
+
+    ret = uv_fs_lstat(unused_uv_loop_arg, &req, path, NULL);
+    if (ret == 0)
+        memcpy(statbuf, req.ptr, sizeof(uv_stat_t));
+    uv_fs_req_cleanup(&req);
+    return ret;
+}
+
+JL_DLLEXPORT int32_t jl_fstat(uv_os_fd_t fd, char *statbuf)
+{
+    uv_fs_t req;
+    int ret;
+
+    ret = uv_fs_fstat(unused_uv_loop_arg, &req, fd, NULL);
+    if (ret == 0)
+        memcpy(statbuf, req.ptr, sizeof(uv_stat_t));
+    uv_fs_req_cleanup(&req);
+    return ret;
+}
+
+JL_DLLEXPORT unsigned int jl_stat_dev(char *statbuf)
+{
+    return ((uv_stat_t*)statbuf)->st_dev;
+}
+
+JL_DLLEXPORT unsigned int jl_stat_ino(char *statbuf)
+{
+    return ((uv_stat_t*)statbuf)->st_ino;
+}
+
+JL_DLLEXPORT unsigned int jl_stat_mode(char *statbuf)
+{
+    return ((uv_stat_t*)statbuf)->st_mode;
+}
+
+JL_DLLEXPORT unsigned int jl_stat_nlink(char *statbuf)
+{
+    return ((uv_stat_t*)statbuf)->st_nlink;
+}
+
+JL_DLLEXPORT unsigned int jl_stat_uid(char *statbuf)
+{
+    return ((uv_stat_t*)statbuf)->st_uid;
+}
+
+JL_DLLEXPORT unsigned int jl_stat_gid(char *statbuf)
+{
+    return ((uv_stat_t*)statbuf)->st_gid;
+}
+
+JL_DLLEXPORT unsigned int jl_stat_rdev(char *statbuf)
+{
+    return ((uv_stat_t*)statbuf)->st_rdev;
+}
+
+JL_DLLEXPORT uint64_t jl_stat_size(char *statbuf)
+{
+    return ((uv_stat_t*)statbuf)->st_size;
+}
+
+JL_DLLEXPORT uint64_t jl_stat_blksize(char *statbuf)
+{
+    return ((uv_stat_t*)statbuf)->st_blksize;
+}
+
+JL_DLLEXPORT uint64_t jl_stat_blocks(char *statbuf)
+{
+    return ((uv_stat_t*)statbuf)->st_blocks;
+}
+
+/*
+// atime is stupid, let's not support it
+JL_DLLEXPORT double jl_stat_atime(char *statbuf)
+{
+  uv_stat_t *s;
+  s = (uv_stat_t*)statbuf;
+  return (double)s->st_atim.tv_sec + (double)s->st_atim.tv_nsec * 1e-9;
+}
+*/
+
+JL_DLLEXPORT double jl_stat_mtime(char *statbuf)
+{
+    uv_stat_t *s;
+    s = (uv_stat_t*)statbuf;
+    return (double)s->st_mtim.tv_sec + (double)s->st_mtim.tv_nsec * 1e-9;
+}
+
+JL_DLLEXPORT double jl_stat_ctime(char *statbuf)
+{
+    uv_stat_t *s;
+    s = (uv_stat_t*)statbuf;
+    return (double)s->st_ctim.tv_sec + (double)s->st_ctim.tv_nsec * 1e-9;
+}
 
 #ifdef __cplusplus
 }

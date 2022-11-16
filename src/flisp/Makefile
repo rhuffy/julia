@@ -26,7 +26,10 @@ NATIVE_BUILDDIR := $(BUILDDIR)
 LLT_BUILDDIR := $(BUILDDIR)/$(LLTDIR)
 endif
 
-HEADERS := $(wildcard *.h) $(LIBUV_INC)/uv.h $(wildcard $(LLTDIR)/*.h)
+HEADERS := $(wildcard *.h) $(wildcard $(LLTDIR)/*.h)
+ifeq ($(DISABLE_LIBUV), 0)
+HEADERS += $(LIBUV_INC)/uv.h
+endif
 
 OBJS := $(SRCS:%.c=$(BUILDDIR)/%.o)
 DOBJS := $(SRCS:%.c=$(BUILDDIR)/%.dbg.obj)
@@ -48,8 +51,11 @@ endif
 
 
 FLAGS := -I$(LLTSRCDIR) $(JCFLAGS) $(HFILEDIRS:%=-I%) \
-        -I$(LIBUV_INC) -I$(UTF8PROC_INC) -I$(build_includedir) $(LIBDIRS:%=-L%) \
+        -I$(UTF8PROC_INC) -I$(build_includedir) $(LIBDIRS:%=-L%) \
         -DLIBRARY_EXPORTS -DUTF8PROC_EXPORTS
+ifeq ($(DISABLE_LIBUV), 0)
+FLAGS += -I$(LIBUV_INC)
+endif
 ifneq ($(OS), emscripten)
 FLAGS += -DUSE_COMPUTED_GOTO
 endif

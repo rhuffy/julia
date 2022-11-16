@@ -4,7 +4,7 @@ if Threads.maxthreadid() != 1
     @warn "Running this file with multiple Julia threads may lead to a build error" Base.maxthreadid()
 end
 
-if Base.isempty(Base.ARGS) || Base.ARGS[1] !== "0"
+if (Base.isempty(Base.ARGS) || Base.ARGS[1] !== "0") && !Base.DISABLE_LIBUV
 Sys.__init_build()
 # Prevent this from being put into the Main namespace
 @eval Module() begin
