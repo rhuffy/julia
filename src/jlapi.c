@@ -502,6 +502,18 @@ JL_DLLEXPORT uint64_t jl_cumulative_recompile_time_ns(void)
 
 JL_DLLEXPORT void jl_get_fenv_consts(int *ret)
 {
+#if defined(_OS_EMSCRIPTEN_)
+#warning fenv constants are not defined in emscripten: https://github.com/emscripten-core/emscripten/pull/11087
+    ret[0] = 0;
+    ret[1] = 0;
+    ret[2] = 0;
+    ret[3] = 0;
+    ret[4] = 0;
+    ret[5] = 0;
+    ret[6] = 0;
+    ret[7] = 0;
+    ret[8] = 0;
+#else
     ret[0] = FE_INEXACT;
     ret[1] = FE_UNDERFLOW;
     ret[2] = FE_OVERFLOW;
@@ -511,6 +523,7 @@ JL_DLLEXPORT void jl_get_fenv_consts(int *ret)
     ret[6] = FE_UPWARD;
     ret[7] = FE_DOWNWARD;
     ret[8] = FE_TOWARDZERO;
+#endif
 }
 
 // TODO: Windows binaries currently load msvcrt which doesn't have these C99 functions.
