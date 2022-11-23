@@ -1303,6 +1303,10 @@ else
 WIN_MAKE_HARD_LINK := true -ignore
 endif # $(OS) == WINNT
 
+ifeq ($(OS), emscripten)
+JCFLAGS += -pthread
+endif
+
 # Threads
 ifneq ($(JULIA_THREADS), 0)
 JCPPFLAGS += -DJULIA_NUM_THREADS=$(JULIA_THREADS)

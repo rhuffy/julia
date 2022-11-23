@@ -154,6 +154,8 @@ void __tsan_switch_to_fiber(void *fiber, unsigned flags);
     asm volatile ("\t.cfi_undefined rip"); \
     asm volatile ("\t.cfi_undefined rbp"); \
     asm volatile ("\t.cfi_return_column rbp");
+#elif defined(_OS_EMSCRIPTEN_)
+#define CFI_NORETURN
 #else
     // per nongnu libunwind: "DWARF spec says undefined return address location means end of stack"
     // we use whatever happens to be register 1 on this platform for this

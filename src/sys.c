@@ -23,7 +23,6 @@
 #include <sys/sysctl.h>
 #endif
 #include <sys/wait.h>
-#include <sys/ptrace.h>
 #include <sys/mman.h>
 #include <dlfcn.h>
 #include <grp.h>
