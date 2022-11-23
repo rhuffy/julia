@@ -275,6 +275,8 @@ JL_NO_ASAN static void restore_stack2(jl_task_t *t, jl_ptls_t ptls, jl_task_t *l
 #elif defined(JL_HAVE_ASM) || defined(JL_HAVE_SIGALTSTACK) || defined(_OS_WINDOWS_)
     if (jl_setjmp(lastt->ctx.copy_ctx.uc_mcontext, 0))
         return;
+#elif defined(_OS_EMSCRIPTEN_)
+#warning COPY_STACKS incompatible error ignored on EMSCRIPTEN
 #else
 #error COPY_STACKS is incompatible with this platform
 #endif
